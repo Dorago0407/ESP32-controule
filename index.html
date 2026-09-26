@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ESP32 BLE CONTROLLER</title>
+    <title>ESP32 DUAL-LINK CTRL</title>
     <style>
         :root { --neon-blue: #00ffff; --neon-red: #ff0055; --neon-green: #00ff00; --bg-dark: #050a10; }
         * { -webkit-user-select: none; user-select: none; touch-action: none; box-sizing: border-box; }
@@ -13,8 +13,8 @@
 
         /* スタート画面 */
         #start-screen { position: fixed; inset: 0; background: var(--bg-dark); z-index: 10001; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-        .shimmer { font-size: 28px; text-shadow: 0 0 15px var(--neon-blue); animation: blink 2s infinite; margin-bottom: 30px; }
-        .mode-btn { background: none; border: 2px solid var(--neon-blue); color: var(--neon-blue); padding: 15px 30px; font-family: inherit; cursor: pointer; width: 260px; font-size: 18px; transition: 0.3s; }
+        .shimmer { font-size: 32px; text-shadow: 0 0 15px var(--neon-blue); animation: blink 2s infinite; margin-bottom: 40px; }
+        .mode-btn { background: none; border: 2px solid var(--neon-blue); color: var(--neon-blue); padding: 15px 30px; font-family: inherit; cursor: pointer; margin: 10px; width: 250px; font-size: 18px; transition: 0.3s; }
         .mode-btn:hover { background: rgba(0,255,255,0.1); box-shadow: 0 0 15px var(--neon-blue); }
 
         /* メインUI */
@@ -26,8 +26,13 @@
         .btn { width: 90px; height: 90px; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-size: 30px; display: flex; justify-content: center; align-items: center; clip-path: polygon(15% 0, 100% 0, 100% 85%, 85% 100%, 0 100%, 0 15%); }
         .btn:active { background: var(--neon-blue); color: #000; box-shadow: 0 0 30px var(--neon-blue); }
         
+        /* パネル */
         .monitor { background: rgba(0,255,255,0.02); border: 1px solid rgba(0,255,255,0.2); padding: 10px; font-size: 10px; }
         #console-log { height: 80px; overflow: hidden; color: var(--neon-green); margin-top: 5px; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 5px; }
+
+        /* 設定メニュー（IP変更用） */
+        #settings-menu { position: fixed; inset: 0; background: rgba(5, 10, 16, 0.95); z-index: 20000; display: none; flex-direction: column; justify-content: center; align-items: center; border: 2px solid var(--neon-blue); }
+        input { background: rgba(0, 255, 255, 0.1); color: var(--neon-green); border: 1px solid var(--neon-blue); padding: 12px; font-size: 24px; text-align: center; font-family: inherit; margin: 20px 0; width: 280px; }
 
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         #portrait-warning { position: fixed; inset: 0; background: #000; z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; color: var(--neon-red); text-align: center; }
@@ -35,36 +40,47 @@
 </head>
 <body>
 
-    <!-- スタート画面 -->
     <div id="start-screen">
-        <h1 class="shimmer">BLE CONTROLLER</h1>
-        <button class="mode-btn" onclick="connectBLE()">[ CONNECT ROBOT ]</button>
-        <p style="font-size: 10px; color: gray; margin-top: 20px;">iPhone: Bluefyアプリ推奨 / Android: Chrome</p>
+        <h1 class="shimmer">SYSTEM SELECT</h1>
+        <button class="mode-btn" onclick="initConn('wifi')">[ Wi-Fi LINK ]</button>
+        <button class="mode-btn" onclick="initConn('bt')">[ Bluetooth LINK ]</button>
+        <p style="font-size: 10px; color: gray; margin-top: 20px;">Android: Chrome / iPhone: Bluefy 推奨</p>
+    </div>
+
+    <div id="settings-menu">
+        <h3 style="text-shadow: 0 0 10px #0ff;">NETWORK CONFIG</h3>
+        <p style="font-size: 12px;">TARGET IP ADDRESS:</p>
+        <input type="text" id="ip-input" value="192.168.4.1">
+        <button class="mode-btn" style="width: 150px;" onclick="saveSettings()">SAVE & CLOSE</button>
     </div>
 
     <div id="portrait-warning"><h1>🔄 ROTATE DEVICE</h1></div>
 
     <div id="main-ui">
         <div class="header-bar">
-            <div>STATUS: <span id="link-status" style="color:var(--neon-green)">CONNECTED</span></div>
+            <div id="link-type">MODE: STANDBY</div>
             <div id="clock">00:00:00</div>
-            <div onclick="location.reload()" style="cursor:pointer; color:var(--neon-red)">[ DISCONNECT ]</div>
+            <div style="display:flex; gap:15px;">
+                <div onclick="toggleSettings(true)" style="cursor:pointer; color:var(--neon-blue)">[ CONFIG ]</div>
+                <div onclick="location.reload()" style="cursor:pointer; color:var(--neon-red)">[ EXIT ]</div>
+            </div>
         </div>
 
         <div class="controller-root">
-            <!-- 左：前後 -->
             <div style="display:grid; gap:20px;">
                 <div class="btn" ontouchstart="send('forward')" ontouchend="send('stop')">▲</div>
                 <div class="btn" ontouchstart="send('backward')" ontouchend="send('stop')">▼</div>
             </div>
 
-            <!-- 中央：メイン情報パネル -->
             <div class="monitor" style="width: 280px; position: relative;">
                 <div id="value-display" style="font-size: 16px; border-bottom: 1px solid #0ff; margin-bottom: 8px; color: var(--neon-green);">:: READY ::</div>
-                <div id="console-log">> BLE SYSTEM READY...</div>
+                <div style="display:flex; justify-content: space-between; font-size: 11px;">
+                    <span>BATT: <span id="val-batt" style="color:#0f0">--</span>V</span>
+                    <span>TEMP: <span id="val-temp" style="color:#0f0">--</span>°C</span>
+                </div>
+                <div id="console-log">> WAITING FOR COMMAND...</div>
             </div>
 
-            <!-- 右：左右 -->
             <div style="display:grid; gap:20px; grid-template-columns: 90px 90px;">
                 <div class="btn" ontouchstart="send('left')" ontouchend="send('stop')">◀</div>
                 <div class="btn" ontouchstart="send('right')" ontouchend="send('stop')">▶</div>
@@ -77,40 +93,67 @@
     </div>
 
     <script>
-        const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-        const CHARACTERISTIC_UUID_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+        let mode = ""; 
+        let btChar;
+        let targetIP = "192.168.4.1";
 
-        let rxCharacteristic;
-
-        async function connectBLE() {
-            try {
-                addLog("SEARCHING FOR ROBOT...");
-                const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'ROBOT_BLE_CTRL' }],
-                    optionalServices: [SERVICE_UUID]
-                });
-
-                const server = await device.gatt.connect();
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                rxCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_RX);
-
-                document.getElementById('start-screen').style.display = 'none';
-                document.getElementById('main-ui').style.display = 'flex';
-                checkOrientation();
-                setInterval(updateClock, 1000);
-                addLog("CONNECTED TO ROBOT!");
-            } catch (error) {
-                alert("接続に失敗しました: " + error);
+        // 起動時に保存されたIPを読み込む
+        window.onload = function() {
+            const savedIP = localStorage.getItem('esp32_ip');
+            if (savedIP) {
+                targetIP = savedIP;
+                document.getElementById('ip-input').value = savedIP;
             }
+        };
+
+        async function initConn(m) {
+            mode = m;
+            document.getElementById('link-type').textContent = `MODE: ${m.toUpperCase()}`;
+            
+            if (mode === 'bt') {
+                try {
+                    const device = await navigator.bluetooth.requestDevice({
+                        acceptAllDevices: true,
+                        optionalServices: ['00001101-0000-1000-8000-00805f9b34fb']
+                    });
+                    const server = await device.gatt.connect();
+                    const service = await server.getPrimaryService('00001101-0000-1000-8000-00805f9b34fb');
+                    btChar = await service.getCharacteristic('00001101-0000-1000-8000-00805f9b34fb');
+                    addLog("BT LINK ESTABLISHED");
+                } catch (e) {
+                    alert("Bluetooth接続に失敗しました: " + e); return;
+                }
+            } else {
+                addLog(`WI-FI TARGET: ${targetIP}`);
+                setInterval(fetchData, 2000); // Wi-Fi時のみデータ取得を開始
+            }
+            
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('main-ui').style.display = 'flex';
+            checkOrientation();
+            setInterval(updateClock, 1000);
+        }
+
+        function toggleSettings(show) {
+            document.getElementById('settings-menu').style.display = show ? 'flex' : 'none';
+        }
+
+        function saveSettings() {
+            targetIP = document.getElementById('ip-input').value;
+            localStorage.setItem('esp32_ip', targetIP);
+            addLog(`IP UPDATED: ${targetIP}`);
+            toggleSettings(false);
         }
 
         function send(cmd) {
             document.getElementById('value-display').textContent = `:: EXEC: ${cmd.toUpperCase()} ::`;
             addLog(cmd.toUpperCase());
             
-            if (rxCharacteristic) {
+            if (mode === 'wifi') {
+                fetch(`http://${targetIP}/move?dir=${cmd}`).catch(()=>{});
+            } else if (btChar) {
                 const encoder = new TextEncoder();
-                rxCharacteristic.writeValue(encoder.encode(cmd));
+                btChar.writeValue(encoder.encode(cmd + "\n"));
             }
         }
 
@@ -118,6 +161,17 @@
             const log = document.getElementById('console-log');
             log.innerHTML += `> ${msg}<br>`;
             log.scrollTop = log.scrollHeight;
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch(`http://${targetIP}/status`, { signal: AbortSignal.timeout(1500) });
+                const data = await res.json();
+                document.getElementById('val-batt').textContent = data.batt.toFixed(1);
+                document.getElementById('val-temp').textContent = data.temp.toFixed(1);
+            } catch(e) {
+                // 通信エラー時は表示を更新しない、または警告を出す
+            }
         }
 
         function updateClock() {
