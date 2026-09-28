@@ -85,10 +85,11 @@
         async function connectBLE() {
             try {
                 addLog("SEARCHING FOR ROBOT...");
-                const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'ROBOT_BLE_CTRL' }],
-                    optionalServices: [SERVICE_UUID]
-                });
+                // 「ROBOT_」から始まる名前の機器をすべて検索対象にする設定
+const device = await navigator.bluetooth.requestDevice({
+    filters: [{ namePrefix: 'ROBOT_' }], // これで ROBOT_BLE_01 も ROBOT_BLE_02 も表示されます
+    optionalServices: [SERVICE_UUID]
+});
 
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
