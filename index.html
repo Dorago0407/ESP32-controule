@@ -1,292 +1,181 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <!-- 画面の拡大（ピンチイン・ダブルタップ）を禁止 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>BLE ロボットコントローラー</title>
-  <style>
-    /* 画面全体の拡大・テキスト選択・タップハイライト・長押しルーペを防止 */
-    * {
-      touch-action: manipulation;
-      -webkit-touch-callout: none;           /* 長押しによるルーペ・メニュー表示を禁止 */
-      -webkit-user-select: none;             /* テキスト選択禁止 */
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      box-sizing: border-box;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ESP32 DUAL-MODE CONTROLLER</title>
+    <style>
+        :root { --neon-blue: #00ffff; --neon-red: #ff0055; --neon-green: #00ff00; --bg-dark: #050a10; }
+        * { -webkit-user-select: none; user-select: none; touch-action: none; box-sizing: border-box; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--bg-dark); color: var(--neon-blue); font-family: 'Courier New', monospace; margin: 0; height: 100vh; overflow: hidden; position: fixed; width: 100%; }
+        
+        body::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%); background-size: 100% 4px; pointer-events: none; z-index: 1000; }
 
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background-color: #1e1e24;
-      color: #ffffff;
-      margin: 0;
-      padding: 15px;
-    }
+        /* スタート画面 */
+        #start-screen { position: fixed; inset: 0; background: var(--bg-dark); z-index: 10001; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .shimmer { font-size: 28px; text-shadow: 0 0 15px var(--neon-blue); animation: blink 2s infinite; margin-bottom: 30px; }
+        .mode-btn { background: none; border: 2px solid var(--neon-blue); color: var(--neon-blue); padding: 15px 30px; font-family: inherit; cursor: pointer; width: 260px; font-size: 18px; transition: 0.3s; }
+        .mode-btn:hover { background: rgba(0,255,255,0.1); box-shadow: 0 0 15px var(--neon-blue); }
 
-    h1 {
-      font-size: 1.2rem;
-      margin-bottom: 10px;
-    }
+        /* メインUI */
+        #main-ui { display: none; flex-direction: column; height: 100vh; }
+        .header-bar { display: flex; justify-content: space-between; padding: 5px 20px; border-bottom: 2px solid var(--neon-blue); font-size: 12px; background: rgba(0, 255, 255, 0.05); align-items: center; }
+        .controller-root { display: flex; justify-content: space-between; align-items: center; flex: 1; padding: 10px 40px; }
+        
+        /* 操作ボタン */
+        .btn { width: 90px; height: 90px; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-size: 30px; display: flex; justify-content: center; align-items: center; clip-path: polygon(15% 0, 100% 0, 100% 85%, 85% 100%, 0 100%, 0 15%); }
+        .btn:active { background: var(--neon-blue); color: #000; box-shadow: 0 0 30px var(--neon-blue); }
+        
+        /* 中央モニター */
+        .monitor { background: rgba(0,255,255,0.02); border: 1px solid rgba(0,255,255,0.2); padding: 10px; font-size: 10px; }
+        #console-log { height: 70px; overflow: hidden; color: var(--neon-green); margin-top: 5px; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 5px; }
 
-    .status-panel {
-      background: #2b2d42;
-      padding: 10px;
-      border-radius: 8px;
-      margin-bottom: 15px;
-      font-size: 0.9rem;
-    }
+        /* モード切り替えボタンのデザイン */
+        .mode-toggle-container { display: flex; justify-content: space-between; margin-bottom: 10px; gap: 6px; }
+        .mode-toggle-btn { flex: 1; padding: 8px 0; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-family: inherit; font-size: 12px; cursor: pointer; transition: 0.3s; }
+        .mode-toggle-btn.active { background: var(--neon-blue); color: #000; font-weight: bold; box-shadow: 0 0 12px var(--neon-blue); }
 
-    .btn {
-      background-color: #4a4e69;
-      color: white;
-      border: none;
-      padding: 12px 20px;
-      font-size: 1rem;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    .btn:active {
-      background-color: #9a8c98;
-    }
-
-    /* 十字キーコントローラーレイアウト */
-    .controller {
-      display: grid;
-      grid-template-columns: repeat(3, 80px);
-      grid-template-rows: repeat(3, 80px);
-      gap: 10px;
-      justify-content: center;
-      margin: 20px auto;
-    }
-
-    .ctrl-btn {
-      background-color: #3a86ff;
-      color: white;
-      font-size: 1.2rem;
-      font-weight: bold;
-      border: none;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-
-    .ctrl-btn:active {
-      background-color: #00b4d8;
-      transform: translateY(2px);
-    }
-
-    .btn-up    { grid-column: 2; grid-row: 1; }
-    .btn-left  { grid-column: 1; grid-row: 2; }
-    .btn-stop  { grid-column: 2; grid-row: 2; background-color: #e63946; }
-    .btn-right { grid-column: 3; grid-row: 2; }
-    .btn-down  { grid-column: 2; grid-row: 3; }
-
-    /* コントロールパネル (速度・センサー) */
-    .panel {
-      background: #2b2d42;
-      padding: 15px;
-      border-radius: 8px;
-      max-width: 320px;
-      margin: 10px auto;
-    }
-
-    .slider-container {
-      margin: 10px 0;
-    }
-
-    input[type=range] {
-      width: 100%;
-    }
-
-    .sensor-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 5px;
-      margin-top: 10px;
-      font-size: 0.85rem;
-    }
-
-    .sensor-box {
-      background: #3d405b;
-      padding: 6px;
-      border-radius: 4px;
-    }
-  </style>
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        #portrait-warning { position: fixed; inset: 0; background: #000; z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; color: var(--neon-red); text-align: center; }
+    </style>
 </head>
 <body>
 
-  <h1>BLE Robot Controller</h1>
-
-  <div class="status-panel">
-    <div>接続状態: <span id="ble-status" style="color: #ff4d4d;">未接続</span></div>
-    <button class="btn" id="btn-connect" style="margin-top: 8px;">BLE接続</button>
-  </div>
-
-  <!-- 十字キー操作エリア -->
-  <div class="controller">
-    <button class="ctrl-btn btn-up" id="btn-forward">▲</button>
-    <button class="ctrl-btn btn-left" id="btn-left">◀</button>
-    <button class="ctrl-btn btn-stop" id="btn-stop">■</button>
-    <button class="ctrl-btn btn-right" id="btn-right">▶</button>
-    <button class="ctrl-btn btn-down" id="btn-backward">▼</button>
-  </div>
-
-  <!-- 速度調整 slider & モード切り替え -->
-  <div class="panel">
-    <div class="slider-container">
-      <label for="speed-slider">速度 (Speed): <span id="speed-val">220</span></label>
-      <input type="range" id="speed-slider" min="0" max="255" value="220">
+    <!-- スタート画面 -->
+    <div id="start-screen">
+        <h1 class="shimmer">BLE CONTROLLER</h1>
+        <button class="mode-btn" onclick="connectBLE()">[ CONNECT ROBOT ]</button>
+        <p style="font-size: 10px; color: gray; margin-top: 20px;">iPhone: Bluefyアプリ推奨 / Android: Chrome</p>
     </div>
-    
-    <div style="margin-top: 10px;">
-      <button class="btn" id="btn-mode-manual" style="background-color: #2a9d8f;">手動モード</button>
-      <button class="btn" id="btn-mode-auto" style="background-color: #e76f51;">自動モード</button>
+
+    <div id="portrait-warning"><h1>🔄 ROTATE DEVICE</h1></div>
+
+    <div id="main-ui">
+        <div class="header-bar">
+            <div>STATUS: <span id="link-status" style="color:var(--neon-green)">CONNECTED</span></div>
+            <div id="clock">00:00:00</div>
+            <div onclick="location.reload()" style="cursor:pointer; color:var(--neon-red)">[ DISCONNECT ]</div>
+        </div>
+
+        <div class="controller-root">
+            <!-- 左：前後 -->
+            <div style="display:grid; gap:20px;">
+                <div class="btn" ontouchstart="send('forward')" ontouchend="send('stop')">▲</div>
+                <div class="btn" ontouchstart="send('backward')" ontouchend="send('stop')">▼</div>
+            </div>
+
+            <!-- 中央：メイン情報パネル（モード切替機能追加） -->
+            <div class="monitor" style="width: 280px; position: relative;">
+                
+                <!-- 🆕 モード切り替えスイッチ -->
+                <div class="mode-toggle-container">
+                    <button class="mode-toggle-btn active" id="btn-manual" onclick="switchControlMode('manual')">🎮 MANUAL</button>
+                    <button class="mode-toggle-btn" id="btn-auto" onclick="switchControlMode('auto')">🤖 AUTO</button>
+                </div>
+
+                <div id="value-display" style="font-size: 14px; border-bottom: 1px solid #0ff; margin-bottom: 6px; color: var(--neon-green);">:: READY ::</div>
+                <div id="console-log">> BLE SYSTEM READY...</div>
+            </div>
+
+            <!-- 右：左右 -->
+            <div style="display:grid; gap:20px; grid-template-columns: 90px 90px;">
+                <div class="btn" ontouchstart="send('left')" ontouchend="send('stop')">◀</div>
+                <div class="btn" ontouchstart="send('right')" ontouchend="send('stop')">▶</div>
+            </div>
+        </div>
+
+        <div style="text-align: center; padding-bottom: 20px;">
+            <button class="btn" style="width: 240px; height: 45px; border-color: var(--neon-red); color: var(--neon-red); font-size: 14px; clip-path: none; border-radius: 5px;" ontouchstart="emergencyStop()">!! EMERGENCY STOP !!</button>
+        </div>
     </div>
-  </div>
 
-  <!-- センサー数値モニター -->
-  <div class="panel">
-    <div>センサーリアルタイムモニター</div>
-    <div class="sensor-grid">
-      <div class="sensor-box">S1: <span id="s1-val">0</span></div>
-      <div class="sensor-box">S2: <span id="s2-val">0</span></div>
-      <div class="sensor-box">S3: <span id="s3-val">0</span></div>
-      <div class="sensor-box">S4: <span id="s4-val">0</span></div>
-    </div>
-  </div>
+    <script>
+        // iOS/Safariでの長押しルーペ・メニュー防止処理
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        }, { passive: false });
 
-  <script>
-    // 長押しルーペ・右クリックメニューの全ブロック
-    document.addEventListener('contextmenu', function(e) {
-      e.preventDefault();
-      return false;
-    }, { passive: false });
+        const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+        const CHARACTERISTIC_UUID_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 
-    // Nordic UART Service UUIDs (ESP32側と完全一致)
-    const SERVICE_UUID           = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-    const CHARACTERISTIC_UUID_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-    const CHARACTERISTIC_UUID_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+        let rxCharacteristic;
 
-    let bleDevice = null;
-    let rxCharacteristic = null;
-    let txCharacteristic = null;
-    let sendInterval = null;
+        async function connectBLE() {
+            try {
+                addLog("SEARCHING FOR ROBOT...");
+                // ROBOT_ で始まるデバイスを検索
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'ROBOT_' }],
+                    optionalServices: [SERVICE_UUID]
+                });
 
-    // --- BLE 接続処理 ---
-    document.getElementById('btn-connect').addEventListener('click', async () => {
-      try {
-        bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ namePrefix: 'ROBOT' }],
-          optionalServices: [SERVICE_UUID]
-        });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                rxCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_RX);
 
-        const server = await bleDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        
-        rxCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_RX);
-        txCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_TX);
-
-        // Notify受信設定 (ESP32からのセンサーデータ用)
-        await txCharacteristic.startNotifications();
-        txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
-
-        document.getElementById('ble-status').innerText = "接続完了";
-        document.getElementById('ble-status').style.color = "#4ccc54";
-      } catch (error) {
-        console.error("BLE Connect Error:", error);
-        alert("接続失敗: " + error);
-      }
-    });
-
-    // --- ESP32からの受信データ処理 ---
-    function handleNotifications(event) {
-      const value = new TextDecoder().decode(event.target.value);
-      // フォーマット解析例: "SENS:S1=512,S2=1024,S3=100,S4=200"
-      if (value.startsWith("SENS:")) {
-        const parts = value.replace("SENS:", "").split(",");
-        parts.forEach(part => {
-          const [key, val] = part.split("=");
-          if (key === "S1") document.getElementById("s1-val").innerText = val;
-          if (key === "S2") document.getElementById("s2-val").innerText = val;
-          if (key === "S3") document.getElementById("s3-val").innerText = val;
-          if (key === "S4") document.getElementById("s4-val").innerText = val;
-        });
-      }
-    }
-
-    // --- コマンド送信関数 ---
-    async function sendCommand(cmd) {
-      if (!rxCharacteristic) return;
-      try {
-        const encoder = new TextEncoder();
-        await rxCharacteristic.writeValueWithoutResponse(encoder.encode(cmd));
-      } catch (err) {
-        console.error("Send Error:", err);
-      }
-    }
-
-    // --- 連写送信付きボタンイベント登録 (Pointer Events) ---
-    function bindButton(elementId, command) {
-      const btn = document.getElementById(elementId);
-
-      const startSending = (e) => {
-        e.preventDefault(); // ダブルタップズームや長押しメニューの防止
-        sendCommand(command);
-        
-        // 押し続けている間 100ms ごとに連射送信して通信落ちを補正
-        if (sendInterval) clearInterval(sendInterval);
-        sendInterval = setInterval(() => {
-          sendCommand(command);
-        }, 100);
-      };
-
-      const stopSending = (e) => {
-        if (e) e.preventDefault();
-        if (sendInterval) {
-          clearInterval(sendInterval);
-          sendInterval = null;
+                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('main-ui').style.display = 'flex';
+                checkOrientation();
+                setInterval(updateClock, 1000);
+                addLog("CONNECTED TO ROBOT!");
+            } catch (error) {
+                alert("接続に失敗しました: " + error);
+            }
         }
-        sendCommand("stop");
-      };
 
-      // タッチ/クリックの即時反応イベント (遅延0ms)
-      btn.addEventListener("pointerdown", startSending, { passive: false });
-      btn.addEventListener("pointerup", stopSending, { passive: false });
-      btn.addEventListener("pointerleave", stopSending, { passive: false });
-      btn.addEventListener("pointercancel", stopSending, { passive: false });
-    }
+        // 🆕 モード切り替え処理
+        function switchControlMode(mode) {
+            const btnManual = document.getElementById('btn-manual');
+            const btnAuto = document.getElementById('btn-auto');
 
-    // 十字キーへバインド
-    bindButton("btn-forward", "forward");
-    bindButton("btn-backward", "backward");
-    bindButton("btn-left", "left");
-    bindButton("btn-right", "right");
+            if (mode === 'auto') {
+                btnManual.classList.remove('active');
+                btnAuto.classList.add('active');
+                send('mode_auto'); // ESP32へ自律モード通知
+                addLog("MODE: AUTONOMOUS");
+            } else {
+                btnAuto.classList.remove('active');
+                btnManual.classList.add('active');
+                send('mode_manual'); // ESP32へ操縦モード通知
+                addLog("MODE: MANUAL");
+            }
+        }
 
-    // 停止ボタン
-    document.getElementById("btn-stop").addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      if (sendInterval) clearInterval(sendInterval);
-      sendCommand("stop");
-    }, { passive: false });
+        // 🆕 緊急停止処理（即座に操縦モードに戻して停止コマンドを送信）
+        function emergencyStop() {
+            switchControlMode('manual');
+            send('stop');
+        }
 
-    // 速度スライダー
-    const slider = document.getElementById("speed-slider");
-    slider.addEventListener("change", (e) => {
-      const val = e.target.value;
-      document.getElementById("speed-val").innerText = val;
-      sendCommand(`speed:${val}`);
-    });
+        function send(cmd) {
+            document.getElementById('value-display').textContent = `:: EXEC: ${cmd.toUpperCase()} ::`;
+            addLog(cmd.toUpperCase());
+            
+            if (rxCharacteristic) {
+                const encoder = new TextEncoder();
+                rxCharacteristic.writeValue(encoder.encode(cmd));
+            }
+        }
 
-    // モード切替
-    document.getElementById("btn-mode-manual").addEventListener("click", () => sendCommand("mode_manual"));
-    document.getElementById("btn-mode-auto").addEventListener("click", () => sendCommand("mode_auto"));
-  </script>
+        function addLog(msg) {
+            const log = document.getElementById('console-log');
+            log.innerHTML += `> ${msg}<br>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateClock() {
+            document.getElementById('clock').textContent = new Date().toTimeString().split(' ')[0];
+        }
+
+        function checkOrientation() {
+            if (document.getElementById('start-screen').style.display === 'none') {
+                const isPortrait = window.innerHeight > window.innerWidth;
+                document.getElementById('portrait-warning').style.display = isPortrait ? 'flex' : 'none';
+                document.getElementById('main-ui').style.display = isPortrait ? 'none' : 'flex';
+            }
+        }
+        window.addEventListener('resize', checkOrientation);
+    </script>
 </body>
 </html>
