@@ -2,15 +2,17 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <!-- スマホのズーム・虫眼鏡拡大を完全に防止する設定 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>BLE Robot Controller</title>
   <style>
+    /* 画面全体で長押し選択や拡大動作を無効化 */
     * {
       box-sizing: border-box;
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
+      -webkit-touch-callout: none; /* 長押しメニュー禁止 */
+      -webkit-user-select: none;   /* テキスト選択禁止 */
       user-select: none;
-      touch-action: manipulation;
+      touch-action: manipulation;  /* ダブルタップズーム禁止 */
     }
 
     body {
@@ -19,7 +21,7 @@
       background-color: #f0f2f5;
       margin: 0;
       padding: 15px;
-      overflow: hidden;
+      overflow: hidden; /* スクロール防止 */
     }
 
     h2 {
@@ -47,6 +49,7 @@
       font-weight: bold;
     }
 
+    /* コントローラーの十字キー配置 */
     .controller {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -67,6 +70,7 @@
       align-items: center;
       justify-content: center;
       box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+      active-background-color: #1e7e34;
     }
 
     .btn-ctrl:active {
@@ -82,6 +86,7 @@
       background-color: #bd2130;
     }
 
+    /* モード切替・設定パネル */
     .control-panel {
       background: #fff;
       padding: 15px;
@@ -91,7 +96,7 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    .mode-group, .slider-group, .sensor-select-group {
+    .mode-group, .slider-group {
       margin-bottom: 12px;
     }
 
@@ -111,22 +116,21 @@
       background: #e9ecef;
       padding: 6px;
       border-radius: 4px;
-      margin-top: 6px;
-      text-align: left;
+      margin-top: 8px;
     }
 
-    /* 🆕 小さな切り替えボタン用スタイル */
+    /* 追加：センサー切り替え用スモールボタン設定 */
     .btn-small {
+      padding: 4px 8px;
       font-size: 11px;
-      padding: 3px 8px;
-      margin: 2px;
-      border: 1px solid #6c757d;
-      background-color: #f8f9fa;
+      margin-left: 4px;
       border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #f8f9fa;
       cursor: pointer;
     }
     .btn-small:active {
-      background-color: #e2e6ea;
+      background: #e2e6ea;
     }
   </style>
 </head>
@@ -138,14 +142,11 @@
 
   <div class="status-panel">
     <div>接続状態: <span id="connStatus" style="color:red; font-weight:bold;">未接続</span></div>
-    
-    <!-- 測距センサーとフォトセンサーの各表示欄 -->
-    <div id="tofDisplay" class="sensor-display">測距(S1/S2): S1=--- | S2=---</div>
-    <div id="photoDisplay" class="sensor-display">フォト(S3/S4): S3=--- | S4=---</div>
-    <div id="selectedDisplay" class="sensor-display" style="background:#e2e3e5; font-weight:bold;">選択中: 測距 1番 (S1)</div>
+    <!-- 画面上のセンサー表示欄（測距・フォト両方の現在選択状態を表示） -->
+    <div id="sensorVal" class="sensor-display">測距(#1): --- | フォト(#1): ---</div>
   </div>
 
-  <!-- 十字キー -->
+  <!-- 操作ボタン（十字キー） -->
   <div class="controller">
     <div></div>
     <button class="btn-ctrl" id="btnForward">▲</button>
@@ -160,19 +161,20 @@
     <div></div>
   </div>
 
-  <!-- 操作パネル -->
+  <!-- モード切替 ＆ 速度調整 -->
   <div class="control-panel">
     <div class="mode-group">
       <label>動作モード:</label><br>
       <button id="btnManual" style="padding: 6px 12px;">手動</button>
       <button id="btnAuto" style="padding: 6px 12px;">自動</button>
-    </div>
-
-    <!-- 🆕 マニュアル/オートの下に追加した小さなセンサー切替ボタン -->
-    <div class="sensor-select-group">
-      <label style="font-size: 12px;">センサー選択 (確認用):</label><br>
-      <button class="btn-small" id="btnTofToggle">測距: <span id="tofNum">1番</span></button>
-      <button class="btn-small" id="btnPhotoToggle">フォト: <span id="photoNum">1番</span></button>
+      
+      <!-- 追加：手動/自動ボタンの横に配置した控えめなセンサー番号変更ボタン -->
+      <div style="margin-top: 8px; font-size: 12px;">
+        <span>測距切替:</span>
+        <button id="btnDistToggle" class="btn-small">1番 ➔ 2番</button>
+        <span style="margin-left:8px;">フォト切替:</span>
+        <button id="btnPhotoToggle" class="btn-small">1番 ➔ 2番</button>
+      </div>
     </div>
 
     <div class="slider-group">
@@ -182,6 +184,7 @@
   </div>
 
   <script>
+    // Nordic UART Service UUIDs
     const SERVICE_UUID           = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
     const CHARACTERISTIC_UUID_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
     const CHARACTERISTIC_UUID_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
@@ -189,18 +192,17 @@
     let rxCharacteristic = null;
     let bluetoothDevice = null;
 
-    // センサー管理変数
-    let tofIndex = 1;   // 1: S1, 2: S2
-    let photoIndex = 1; // 1: S3, 2: S4
-    let lastSensorData = { S1: 0, S2: 0, S3: 0, S4: 0 };
-
+    // UI elements
     const connectBtn = document.getElementById('connectBtn');
     const connStatus = document.getElementById('connStatus');
-    const tofDisplay = document.getElementById('tofDisplay');
-    const photoDisplay = document.getElementById('photoDisplay');
-    const selectedDisplay = document.getElementById('selectedDisplay');
+    const sensorVal = document.getElementById('sensorVal');
     const speedSlider = document.getElementById('speedSlider');
     const speedVal = document.getElementById('speedVal');
+
+    // 追加：測距センサー・フォトセンサーの選択番号状態（1または2）
+    let distSensorIndex = 1;
+    let photoSensorIndex = 1;
+    let rawSensorValues = { S1: "---", S2: "---", S3: "---", S4: "---" };
 
     // BLE 接続処理
     connectBtn.addEventListener('click', async () => {
@@ -217,6 +219,7 @@
         rxCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_RX);
         const txCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_TX);
 
+        // センサーデータ受信登録
         await txCharacteristic.startNotifications();
         txCharacteristic.addEventListener('characteristicvaluechanged', handleSensorData);
 
@@ -238,6 +241,7 @@
       connectBtn.style.display = "inline-block";
     }
 
+    // コマンド送信関数
     async function sendCmd(cmd) {
       if (!rxCharacteristic) return;
       try {
@@ -248,55 +252,51 @@
       }
     }
 
-    // センサーデータ受信・表示更新
+    // 表示更新の共通処理（S1/S2を測距1/2、S3/S4をフォト1/2として割り当て表示）
+    function updateSensorDisplay() {
+      // 例: 測距1番=S1, 測距2番=S2 / フォト1番=S3, フォト2番=S4
+      const distVal = (distSensorIndex === 1) ? rawSensorValues.S1 : rawSensorValues.S2;
+      const photoVal = (photoSensorIndex === 1) ? rawSensorValues.S3 : rawSensorValues.S4;
+
+      sensorVal.textContent = `測距(#${distSensorIndex}): ${distVal} | フォト(#${photoSensorIndex}): ${photoVal}`;
+    }
+
+    // センサー値の受信処理
     function handleSensorData(event) {
       const decoder = new TextDecoder('utf-8');
       const text = decoder.decode(event.target.value);
-      
       if (text.startsWith("SENS:")) {
-        // パース処理 (SENS:S1=xxx,S2=xxx,S3=xxx,S4=xxx)
-        const items = text.replace("SENS:", "").split(",");
-        items.forEach(item => {
-          const [key, val] = item.split("=");
-          if (key && val) lastSensorData[key] = val;
+        // 例: SENS:S1=512,S2=1024,S3=0,S4=0 のパース
+        const pairs = text.replace("SENS:", "").split(",");
+        pairs.forEach(pair => {
+          const [key, val] = pair.split("=");
+          if (key && val !== undefined) {
+            rawSensorValues[key.trim()] = val.trim();
+          }
         });
-
-        // 欄に値を反映
-        tofDisplay.textContent = `測距(S1/S2): S1=${lastSensorData.S1} | S2=${lastSensorData.S2}`;
-        photoDisplay.textContent = `フォト(S3/S4): S3=${lastSensorData.S3} | S4=${lastSensorData.S4}`;
-
-        updateSelectedView();
+        updateSensorDisplay();
       }
     }
 
-    // 選択されたセンサー値の強調表示を更新
-    function updateSelectedView() {
-      const activeTofKey = tofIndex === 1 ? 'S1' : 'S2';
-      const activePhotoKey = photoIndex === 1 ? 'S3' : 'S4';
-      
-      selectedDisplay.textContent = 
-        `選択中 測距:${tofIndex}番(${activeTofKey}=${lastSensorData[activeTofKey]}) | フォト:${photoIndex}番(${activePhotoKey}=${lastSensorData[activePhotoKey]})`;
-    }
-
-    // 🆕 ボタンでの番号切り替え処理（1番 ↔ 2番）
-    document.getElementById('btnTofToggle').addEventListener('click', () => {
-      tofIndex = tofIndex === 1 ? 2 : 1;
-      document.getElementById('tofNum').textContent = tofIndex + "番";
-      updateSelectedView();
+    // 追加：切り替えボタンの動作ロジック（1番 ⇄ 2番のトグル）
+    document.getElementById('btnDistToggle').addEventListener('click', (e) => {
+      e.preventDefault();
+      distSensorIndex = (distSensorIndex === 1) ? 2 : 1;
+      updateSensorDisplay();
     });
 
-    document.getElementById('btnPhotoToggle').addEventListener('click', () => {
-      photoIndex = photoIndex === 1 ? 2 : 1;
-      document.getElementById('photoNum').textContent = photoIndex + "番";
-      updateSelectedView();
+    document.getElementById('btnPhotoToggle').addEventListener('click', (e) => {
+      e.preventDefault();
+      photoSensorIndex = (photoSensorIndex === 1) ? 2 : 1;
+      updateSensorDisplay();
     });
 
-    // タッチイベント関係
+    // タッチイベントの割り当て（連打や長押しでの画面操作誤動を防ぐため preventDefault を使用）
     function bindBtn(elementId, cmd) {
       const btn = document.getElementById(elementId);
       
       const startAction = (e) => {
-        e.preventDefault();
+        e.preventDefault(); // 画面拡大・選択などのデフォルト動作を無効化
         sendCmd(cmd);
       };
 
@@ -311,6 +311,7 @@
       btn.addEventListener('mouseup', stopAction);
     }
 
+    // ボタンイベント登録
     bindBtn('btnForward', 'forward');
     bindBtn('btnBackward', 'backward');
     bindBtn('btnLeft', 'left');
@@ -321,9 +322,11 @@
       sendCmd('stop');
     });
 
+    // モード切替
     document.getElementById('btnManual').addEventListener('click', () => sendCmd('mode_manual'));
     document.getElementById('btnAuto').addEventListener('click', () => sendCmd('mode_auto'));
 
+    // 速度スライダー調整
     speedSlider.addEventListener('input', (e) => {
       const val = e.target.value;
       speedVal.textContent = val;
