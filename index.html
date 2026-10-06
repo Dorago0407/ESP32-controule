@@ -49,53 +49,6 @@
       font-weight: bold;
     }
 
-    /* センサー切り替え表示部 */
-    .sensor-panel {
-      margin-top: 8px;
-      background: #f8f9fa;
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid #e0e0e0;
-    }
-
-    .sensor-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 4px 0;
-      font-size: 13px;
-    }
-
-    .sensor-title {
-      font-weight: bold;
-      color: #333;
-    }
-
-    .sensor-btn-group button {
-      padding: 3px 8px;
-      font-size: 12px;
-      border: 1px solid #007bff;
-      background-color: #fff;
-      color: #007bff;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .sensor-btn-group button.active {
-      background-color: #007bff;
-      color: #fff;
-      font-weight: bold;
-    }
-
-    .sensor-val-box {
-      font-family: monospace;
-      font-size: 14px;
-      font-weight: bold;
-      color: #17a2b8;
-      min-width: 60px;
-      text-align: right;
-    }
-
     /* コントローラーの十字キー配置 */
     .controller {
       display: grid;
@@ -117,6 +70,7 @@
       align-items: center;
       justify-content: center;
       box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+      active-background-color: #1e7e34;
     }
 
     .btn-ctrl:active {
@@ -155,6 +109,15 @@
       width: 100%;
       margin-top: 5px;
     }
+
+    .sensor-display {
+      font-family: monospace;
+      font-size: 13px;
+      background: #e9ecef;
+      padding: 6px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
@@ -165,29 +128,7 @@
 
   <div class="status-panel">
     <div>接続状態: <span id="connStatus" style="color:red; font-weight:bold;">未接続</span></div>
-    
-    <!-- センサー切り替え表示エリア -->
-    <div class="sensor-panel">
-      <!-- フォトセンサー (S1 / S2) -->
-      <div class="sensor-row">
-        <span class="sensor-title">フォト:</span>
-        <div class="sensor-btn-group">
-          <button id="btnPhoto1" class="active" onclick="selectPhoto(1)">1番</button>
-          <button id="btnPhoto2" onclick="selectPhoto(2)">2番</button>
-        </div>
-        <span id="photoValDisplay" class="sensor-val-box">---</span>
-      </div>
-
-      <!-- 測距センサー (S3 / S4) -->
-      <div class="sensor-row">
-        <span class="sensor-title">測距:</span>
-        <div class="sensor-btn-group">
-          <button id="btnDist1" class="active" onclick="selectDist(1)">1番</button>
-          <button id="btnDist2" onclick="selectDist(2)">2番</button>
-        </div>
-        <span id="distValDisplay" class="sensor-val-box">---</span>
-      </div>
-    </div>
+    <div id="sensorVal" class="sensor-display">S1: --- | S2: --- | S3: --- | S4: ---</div>
   </div>
 
   <!-- 操作ボタン（十字キー） -->
@@ -228,47 +169,12 @@
     let rxCharacteristic = null;
     let bluetoothDevice = null;
 
-    // 最新のセンサー値を保持するオブジェクト
-    // フォトセンサー: S1 (1番), S2 (2番)
-    // 測距センサー: S3 (1番), S4 (2番)
-    let rawSensorData = { S1: "---", S2: "---", S3: "---", S4: "---" };
-
-    // 現在画面で選択されているセンサーの番号 (1 または 2)
-    let currentPhotoNum = 1;
-    let currentDistNum = 1;
-
     // UI elements
     const connectBtn = document.getElementById('connectBtn');
     const connStatus = document.getElementById('connStatus');
+    const sensorVal = document.getElementById('sensorVal');
     const speedSlider = document.getElementById('speedSlider');
     const speedVal = document.getElementById('speedVal');
-
-    // フォトセンサーの番号切り替え
-    function selectPhoto(num) {
-      currentPhotoNum = num;
-      document.getElementById('btnPhoto1').classList.toggle('active', num === 1);
-      document.getElementById('btnPhoto2').classList.toggle('active', num === 2);
-      updateSensorDisplay();
-    }
-
-    // 測距センサーの番号切り替え
-    function selectDist(num) {
-      currentDistNum = num;
-      document.getElementById('btnDist1').classList.toggle('active', num === 1);
-      document.getElementById('btnDist2').classList.toggle('active', num === 2);
-      updateSensorDisplay();
-    }
-
-    // 選択された番号に応じたセンサー値を画面更新
-    function updateSensorDisplay() {
-      // フォト: 1番=S1, 2番=S2
-      const photoVal = (currentPhotoNum === 1) ? rawSensorData.S1 : rawSensorData.S2;
-      document.getElementById('photoValDisplay').textContent = photoVal;
-
-      // 測距: 1番=S3, 2番=S4
-      const distVal = (currentDistNum === 1) ? rawSensorData.S3 : rawSensorData.S4;
-      document.getElementById('distValDisplay').textContent = distVal;
-    }
 
     // BLE 接続処理
     connectBtn.addEventListener('click', async () => {
@@ -318,30 +224,23 @@
       }
     }
 
-    // センサー値の受信・解析処理
+    // センサー値の表示更新
     function handleSensorData(event) {
       const decoder = new TextDecoder('utf-8');
       const text = decoder.decode(event.target.value);
-      
       if (text.startsWith("SENS:")) {
-        // 例: SENS:S1=512,S2=1024,S3=250,S4=180
-        const items = text.replace("SENS:", "").split(",");
-        items.forEach(item => {
-          const [key, val] = item.split("=");
-          if (key && val) {
-            rawSensorData[key] = val;
-          }
-        });
-        updateSensorDisplay();
+        // 例: SENS:S1=512,S2=1024,S3=0,S4=0
+        const data = text.replace("SENS:", "");
+        sensorVal.textContent = data.replace(/,/g, " | ");
       }
     }
 
-    // タッチイベントの割り当て
+    // タッチイベントの割り当て（連打や長押しでの画面操作誤動を防ぐため preventDefault を使用）
     function bindBtn(elementId, cmd) {
       const btn = document.getElementById(elementId);
       
       const startAction = (e) => {
-        e.preventDefault();
+        e.preventDefault(); // 画面拡大・選択などのデフォルト動作を無効化
         sendCmd(cmd);
       };
 
