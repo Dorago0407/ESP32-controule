@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <!-- スマホの自動ズーム・拡大を完全に禁止 -->
+  <!-- スマホの自動ズーム・虫眼鏡拡大を完全に禁止 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>BLE Robot Control</title>
   <style>
@@ -22,6 +22,50 @@
       color: #00ffcc;
       font-family: 'Courier New', Courier, monospace;
       overflow: hidden;
+      height: 100vh;
+    }
+
+    /* 🆕 スタート画面（オーバーレイ） */
+    #startOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(3, 8, 12, 0.95);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .start-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #00ffcc;
+      text-shadow: 0 0 10px #00ffcc;
+      margin-bottom: 20px;
+      letter-spacing: 2px;
+    }
+
+    .btn-start {
+      width: 200px;
+      height: 60px;
+      border: 2px solid #00ffcc;
+      background: rgba(0, 255, 204, 0.1);
+      color: #00ffcc;
+      font-size: 18px;
+      font-weight: bold;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
+      clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+    }
+
+    .btn-start:active {
+      background: #00ffcc;
+      color: #03080c;
     }
 
     /* ヘッダー */
@@ -49,7 +93,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      height: calc(100vh - 120px);
+      height: calc(100vh - 60px);
     }
 
     /* 十字キー（左右配置） */
@@ -150,7 +194,7 @@
 
     .log-box {
       border: 1px solid rgba(0, 255, 204, 0.3);
-      height: 60px;
+      height: 55px;
       font-size: 10px;
       padding: 5px;
       overflow-y: hidden;
@@ -178,11 +222,17 @@
 </head>
 <body>
 
+  <!-- 🆕 スタート（接続）画面 -->
+  <div id="startOverlay">
+    <div class="start-title">BLE ROBOT SYSTEM</div>
+    <button class="btn-start" id="startBtn">[ START / CONNECT ]</button>
+  </div>
+
   <!-- ヘッダー -->
   <div class="header">
     <div>STATUS: <span id="statusTxt" style="color:#ff3366;">DISCONNECTED</span></div>
     <div id="clock">16:51:04</div>
-    <button class="btn-disconnect" id="connectBtn">[ CONNECT ]</button>
+    <button class="btn-disconnect" id="headerConnBtn">[ DISCONNECT ]</button>
   </div>
 
   <!-- メインコンテンツ -->
@@ -268,21 +318,19 @@
     let bluetoothDevice = null;
     let currentSensPage = 1;
 
-    // 時計の更新
+    // 時計更新
     setInterval(() => {
       const now = new Date();
       document.getElementById('clock').textContent = now.toTimeString().split(' ')[0];
     }, 1000);
 
-    // BLE 接続処理
-    const connectBtn = document.getElementById('connectBtn');
+    const startOverlay = document.getElementById('startOverlay');
+    const startBtn = document.getElementById('startBtn');
+    const headerConnBtn = document.getElementById('headerConnBtn');
     const statusTxt = document.getElementById('statusTxt');
 
-    connectBtn.addEventListener('click', async () => {
-      if (bluetoothDevice && bluetoothDevice.gatt.connected) {
-        bluetoothDevice.gatt.disconnect();
-        return;
-      }
+    // 接続処理
+    async function connectBLE() {
       try {
         statusTxt.textContent = "CONNECTING...";
         statusTxt.style.color = "#ffff00";
@@ -303,17 +351,31 @@
 
         statusTxt.textContent = "CONNECTED";
         statusTxt.style.color = "#00ffcc";
-        connectBtn.textContent = "[ DISCONNECT ]";
+        headerConnBtn.textContent = "[ DISCONNECT ]";
+        
+        // 接続成功したらスタート画面を隠す
+        startOverlay.style.display = 'none';
 
         bluetoothDevice.addEventListener('gattserverdisconnected', () => {
           statusTxt.textContent = "DISCONNECTED";
           statusTxt.style.color = "#ff3366";
-          connectBtn.textContent = "[ CONNECT ]";
+          headerConnBtn.textContent = "[ CONNECT ]";
+          startOverlay.style.display = 'flex'; // 切断されたらスタート画面を再表示
         });
       } catch (e) {
         console.error(e);
         statusTxt.textContent = "ERROR";
         statusTxt.style.color = "#ff3366";
+      }
+    }
+
+    // スタートボタン ＆ ヘッダー接続ボタンのイベント
+    startBtn.addEventListener('click', connectBLE);
+    headerConnBtn.addEventListener('click', () => {
+      if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+        bluetoothDevice.gatt.disconnect();
+      } else {
+        connectBLE();
       }
     });
 
@@ -339,12 +401,11 @@
     function handleData(event) {
       const text = new TextDecoder().decode(event.target.value);
       if (text.startsWith("SENS:")) {
-        // 例: SENS:S1=512,S2=256,S3=0,S4=0
         const pairs = text.replace("SENS:", "").split(",");
         pairs.forEach(p => {
           const [key, val] = p.split("=");
           const num = parseInt(val) || 0;
-          const pct = Math.min(100, Math.max(0, (num / 4095) * 100)); // ESP32 12bit ADC (0-4095)
+          const pct = Math.min(100, Math.max(0, (num / 4095) * 100));
           
           if (key === "S1") { document.getElementById('s1Num').textContent = num; document.getElementById('s1Bar').style.width = pct + "%"; }
           if (key === "S2") { document.getElementById('s2Num').textContent = num; document.getElementById('s2Bar').style.width = pct + "%"; }
@@ -354,7 +415,7 @@
       }
     }
 
-    // ボタン設定 (拡大防止のTouch処理付き)
+    // 操作ボタン（タッチによる拡大防止付き）
     function bindBtn(id, cmd) {
       const el = document.getElementById(id);
       const start = (e) => { e.preventDefault(); sendCmd(cmd); };
@@ -392,7 +453,7 @@
       sendCmd('mode_auto');
     });
 
-    // センサーページ切り替え
+    // センサーページ切替
     document.getElementById('prevSens').addEventListener('click', toggleSensPage);
     document.getElementById('nextSens').addEventListener('click', toggleSensPage);
 
