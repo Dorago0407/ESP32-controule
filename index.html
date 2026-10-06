@@ -1,281 +1,234 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <!-- スマホのズーム・虫眼鏡拡大を完全に防止する設定 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>BLE Robot Controller</title>
-  <style>
-    /* 画面全体で長押し選択や拡大動作を無効化 */
-    * {
-      box-sizing: border-box;
-      -webkit-touch-callout: none; /* 長押しメニュー禁止 */
-      -webkit-user-select: none;   /* テキスト選択禁止 */
-      user-select: none;
-      touch-action: manipulation;  /* ダブルタップズーム禁止 */
-    }
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background-color: #f0f2f5;
-      margin: 0;
-      padding: 15px;
-      overflow: hidden; /* スクロール防止 */
-    }
+#define ROBOT_NAME "ROBOT_BLE_01"
 
-    h2 {
-      margin: 10px 0;
-      font-size: 20px;
-    }
+// BLE UUID
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E" // 🆕 データ送信用
 
-    .status-panel {
-      background: #fff;
-      padding: 10px;
-      border-radius: 8px;
-      margin-bottom: 15px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      font-size: 14px;
-    }
+// ピン定義 (元コードのまま)
+#define FLS 2
+#define FRS 15
+#define BLS 12
+#define BRS 13
 
-    .btn-connect {
-      background-color: #007bff;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      font-size: 16px;
-      border-radius: 25px;
-      cursor: pointer;
-      font-weight: bold;
-    }
+// センサーピン (元コードのまま)
+#define S1 34
+#define S2 35
+#define S3 A0
+#define S4 A3
 
-    /* コントローラーの十字キー配置 */
-    .controller {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      max-width: 300px;
-      margin: 15px auto;
-    }
+int speed = 220;
 
-    .btn-ctrl {
-      background-color: #28a745;
-      color: white;
-      border: none;
-      border-radius: 12px;
-      height: 70px;
-      font-size: 20px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.15);
-      active-background-color: #1e7e34;
-    }
+const int FR1 = 33; const int FR2 = 22; const int FR_PWM = 21;
+const int FL1 = 16; const int FL2 = 23; const int FL_PWM = 25;
+const int BR1 = 27; const int BR2 = 32; const int BR_PWM = 26;
+const int BL1 = 19; const int BL2 = 14; const int BL_PWM = 18;
 
-    .btn-ctrl:active {
-      transform: scale(0.95);
-      background-color: #1e7e34;
-    }
+const int C_FL = 0; const int C_FR = 1; const int C_BL = 2; const int C_BR = 3;
 
-    .btn-stop {
-      background-color: #dc3545;
-    }
+enum Mode { MODE_MANUAL, MODE_AUTO };
+Mode currentMode = MODE_MANUAL;
 
-    .btn-stop:active {
-      background-color: #bd2130;
-    }
+bool deviceConnected = false;
+BLECharacteristic *pTxCharacteristic; // 🆕 スマホへ送信するためのポインタ
+unsigned long lastSensorSendTime = 0;
 
-    /* モード切替・設定パネル */
-    .control-panel {
-      background: #fff;
-      padding: 15px;
-      border-radius: 8px;
-      max-width: 300px;
-      margin: 0 auto;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
+// 🆕 安全自動停止用タイマー
+unsigned long lastCmdTime = 0;
+const unsigned long SAFETY_TIMEOUT = 1000; // 1秒操作がなければ停止
 
-    .mode-group, .slider-group {
-      margin-bottom: 12px;
-    }
+// モーター関数 (元コードのまま)
+void front(int spd) {
+  digitalWrite(FL1, LOW);  digitalWrite(FL2, HIGH); ledcWrite(C_FL, spd);
+  digitalWrite(FR1, HIGH); digitalWrite(FR2, LOW);  ledcWrite(C_FR, spd);
+  digitalWrite(BL1, HIGH); digitalWrite(BL2, LOW);  ledcWrite(C_BL, spd);
+  digitalWrite(BR1, LOW);  digitalWrite(BR2, HIGH); ledcWrite(C_BR, spd);
+}
 
-    label {
-      font-weight: bold;
-      font-size: 14px;
-    }
+void back(int spd) {
+  digitalWrite(FL1, HIGH); digitalWrite(FL2, LOW);  ledcWrite(C_FL, spd);
+  digitalWrite(FR1, LOW);  digitalWrite(FR2, HIGH); ledcWrite(C_FR, spd);
+  digitalWrite(BL1, LOW);  digitalWrite(BL2, HIGH); ledcWrite(C_BL, spd);
+  digitalWrite(BR1, HIGH); digitalWrite(BR2, LOW);  ledcWrite(C_BR, spd);
+}
 
-    input[type="range"] {
-      width: 100%;
-      margin-top: 5px;
-    }
+void right(int spd) {
+  digitalWrite(FL1, LOW);  digitalWrite(FL2, HIGH); ledcWrite(C_FL, spd);
+  digitalWrite(FR1, LOW);  digitalWrite(FR2, HIGH); ledcWrite(C_FR, spd);
+  digitalWrite(BL1, HIGH); digitalWrite(BL2, LOW);  ledcWrite(C_BL, spd);
+  digitalWrite(BR1, HIGH); digitalWrite(BR2, LOW);  ledcWrite(C_BR, spd);
+}
 
-    .sensor-display {
-      font-family: monospace;
-      font-size: 13px;
-      background: #e9ecef;
-      padding: 6px;
-      border-radius: 4px;
-      margin-top: 8px;
-    }
-  </style>
-</head>
-<body>
+void left(int spd) {
+  digitalWrite(FL1, HIGH); digitalWrite(FL2, LOW);  ledcWrite(C_FL, spd);
+  digitalWrite(FR1, HIGH); digitalWrite(FR2, LOW);  ledcWrite(C_FR, spd);
+  digitalWrite(BL1, LOW);  digitalWrite(BL2, HIGH); ledcWrite(C_BL, spd);
+  digitalWrite(BR1, LOW);  digitalWrite(BR2, HIGH); ledcWrite(C_BR, spd);
+}
 
-  <h2>BLE Robot Control</h2>
+void stopRobot(void) {
+  digitalWrite(FL1, LOW); digitalWrite(FL2, LOW); ledcWrite(C_FL, 0);
+  digitalWrite(FR1, LOW); digitalWrite(FR2, LOW); ledcWrite(C_FR, 0);
+  digitalWrite(BL1, LOW); digitalWrite(BL2, LOW); ledcWrite(C_BL, 0);
+  digitalWrite(BR1, LOW); digitalWrite(BR2, LOW); ledcWrite(C_BR, 0);
+}
 
-  <button id="connectBtn" class="btn-connect">BLE接続</button>
+// 🆕 スマホへ文字列メッセージを送る関数 (元コードのまま)
+void sendToPhone(String message) {
+  if (deviceConnected && pTxCharacteristic) {
+    pTxCharacteristic->setValue(message.c_str());
+    pTxCharacteristic->notify();
+  }
+}
 
-  <div class="status-panel">
-    <div>接続状態: <span id="connStatus" style="color:red; font-weight:bold;">未接続</span></div>
-    <div id="sensorVal" class="sensor-display">S1: --- | S2: --- | S3: --- | S4: ---</div>
-  </div>
+// コマンド処理
+void processCommand(String cmd) {
+  Serial.println("CMD: " + cmd);
+  lastCmdTime = millis(); // 最終受信時刻を更新
 
-  <!-- 操作ボタン（十字キー） -->
-  <div class="controller">
-    <div></div>
-    <button class="btn-ctrl" id="btnForward">▲</button>
-    <div></div>
-    
-    <button class="btn-ctrl" id="btnLeft">◄</button>
-    <button class="btn-ctrl btn-stop" id="btnStop">■</button>
-    <button class="btn-ctrl" id="btnRight">►</button>
-    
-    <div></div>
-    <button class="btn-ctrl" id="btnBackward">▼</button>
-    <div></div>
-  </div>
+  // 速度変更処理の拡張 (例: "speed:180")
+  if (cmd.startsWith("speed:")) {
+    speed = cmd.substring(6).toInt();
+    speed = constrain(speed, 0, 255);
+    sendToPhone("STATUS: SPEEDUPDATED");
+    return;
+  }
 
-  <!-- モード切替 ＆ 速度調整 -->
-  <div class="control-panel">
-    <div class="mode-group">
-      <label>動作モード:</label><br>
-      <button id="btnManual" style="padding: 6px 12px;">手動</button>
-      <button id="btnAuto" style="padding: 6px 12px;">自動</button>
-    </div>
+  if (cmd == "mode_auto") {
+    currentMode = MODE_AUTO;
+    sendToPhone("STATUS: MODE AUTO");
+    return;
+  } else if (cmd == "mode_manual") {
+    currentMode = MODE_MANUAL;
+    stopRobot();
+    sendToPhone("STATUS: MODE MANUAL");
+    return;
+  }
 
-    <div class="slider-group">
-      <label>速度調整: <span id="speedVal">220</span></label>
-      <input type="range" id="speedSlider" min="0" max="255" value="220">
-    </div>
-  </div>
+  if (currentMode == MODE_MANUAL) {
+    if (cmd == "forward")      { front(speed); sendToPhone("STATUS: FORWARD"); }
+    else if (cmd == "backward"){ back(speed);  sendToPhone("STATUS: BACKWARD"); }
+    else if (cmd == "left")    { left(speed);  sendToPhone("STATUS: TURN LEFT"); }
+    else if (cmd == "right")   { right(speed); sendToPhone("STATUS: TURN RIGHT"); }
+    else                       { stopRobot();  sendToPhone("STATUS: STOP"); }
+  }
+}
 
-  <script>
-    // Nordic UART Service UUIDs
-    const SERVICE_UUID           = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-    const CHARACTERISTIC_UUID_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-    const CHARACTERISTIC_UUID_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+// 自律走行処理 (元コードのまま)
+void autonomousBehavior() {
+  int v1 = analogRead(S1);
+  int v2 = analogRead(S2);
 
-    let rxCharacteristic = null;
-    let bluetoothDevice = null;
+  if (v1 < 1000 && v2 < 1000) { front(180); } 
+  else if (v1 >= 1000)        { right(180); } 
+  else if (v2 >= 1000)        { left(180); } 
+  else                        { stopRobot(); }
+}
 
-    // UI elements
-    const connectBtn = document.getElementById('connectBtn');
-    const connStatus = document.getElementById('connStatus');
-    const sensorVal = document.getElementById('sensorVal');
-    const speedSlider = document.getElementById('speedSlider');
-    const speedVal = document.getElementById('speedVal');
-
-    // BLE 接続処理
-    connectBtn.addEventListener('click', async () => {
-      try {
-        connStatus.textContent = "接続中...";
-        bluetoothDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ namePrefix: "ROBOT" }],
-          optionalServices: [SERVICE_UUID]
-        });
-
-        const server = await bluetoothDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-
-        rxCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_RX);
-        const txCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_TX);
-
-        // センサーデータ受信登録
-        await txCharacteristic.startNotifications();
-        txCharacteristic.addEventListener('characteristicvaluechanged', handleSensorData);
-
-        connStatus.textContent = "接続済み";
-        connStatus.style.color = "green";
-        connectBtn.style.display = "none";
-
-        bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
-      } catch (error) {
-        console.error(error);
-        connStatus.textContent = "接続失敗";
-        connStatus.style.color = "red";
-      }
-    });
-
-    function onDisconnected() {
-      connStatus.textContent = "切断されました";
-      connStatus.style.color = "red";
-      connectBtn.style.display = "inline-block";
-    }
-
-    // コマンド送信関数
-    async function sendCmd(cmd) {
-      if (!rxCharacteristic) return;
-      try {
-        const encoder = new TextEncoder();
-        await rxCharacteristic.writeValue(encoder.encode(cmd + "\n"));
-      } catch (e) {
-        console.error("送信エラー:", e);
+class MyCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      std::string rxValue = pCharacteristic->getValue();
+      if (rxValue.length() > 0) {
+        String cmd = "";
+        for (size_t i = 0; i < rxValue.length(); i++) { cmd += rxValue[i]; }
+        cmd.trim();
+        processCommand(cmd);
       }
     }
+};
 
-    // センサー値の表示更新
-    function handleSensorData(event) {
-      const decoder = new TextDecoder('utf-8');
-      const text = decoder.decode(event.target.value);
-      if (text.startsWith("SENS:")) {
-        // 例: SENS:S1=512,S2=1024,S3=0,S4=0
-        const data = text.replace("SENS:", "");
-        sensorVal.textContent = data.replace(/,/g, " | ");
-      }
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) { deviceConnected = true; Serial.println("Connected!"); };
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      currentMode = MODE_MANUAL;
+      stopRobot();
+      pServer->getAdvertising()->start();
     }
+};
 
-    // タッチイベントの割り当て（連打や長押しでの画面操作誤動を防ぐため preventDefault を使用）
-    function bindBtn(elementId, cmd) {
-      const btn = document.getElementById(elementId);
-      
-      const startAction = (e) => {
-        e.preventDefault(); // 画面拡大・選択などのデフォルト動作を無効化
-        sendCmd(cmd);
-      };
+void setup() {
+  Serial.begin(115200);
 
-      const stopAction = (e) => {
-        e.preventDefault();
-        sendCmd("stop");
-      };
+  pinMode(FR1, OUTPUT); pinMode(FR2, OUTPUT);
+  pinMode(FL1, OUTPUT); pinMode(FL2, OUTPUT);
+  pinMode(BR1, OUTPUT); pinMode(BR2, OUTPUT);
+  pinMode(BL1, OUTPUT); pinMode(BL2, OUTPUT);
 
-      btn.addEventListener('touchstart', startAction, { passive: false });
-      btn.addEventListener('touchend', stopAction, { passive: false });
-      btn.addEventListener('mousedown', startAction);
-      btn.addEventListener('mouseup', stopAction);
-    }
+  pinMode(FL_PWM, OUTPUT); pinMode(FR_PWM, OUTPUT);
+  pinMode(BL_PWM, OUTPUT); pinMode(BR_PWM, OUTPUT);
 
-    // ボタンイベント登録
-    bindBtn('btnForward', 'forward');
-    bindBtn('btnBackward', 'backward');
-    bindBtn('btnLeft', 'left');
-    bindBtn('btnRight', 'right');
+  pinMode(S1, INPUT); pinMode(S2, INPUT);
+  pinMode(S3, INPUT); pinMode(S4, INPUT); // 🆕 S3, S4も追加設定
 
-    document.getElementById('btnStop').addEventListener('click', (e) => {
-      e.preventDefault();
-      sendCmd('stop');
-    });
+  // 元コード通りのPWM設定・接続割り当て
+  ledcSetup(C_FL, 1100, 8); ledcSetup(C_FR, 1200, 8);
+  ledcSetup(C_BL, 1300, 8); ledcSetup(C_BR, 1400, 8);
 
-    // モード切替
-    document.getElementById('btnManual').addEventListener('click', () => sendCmd('mode_manual'));
-    document.getElementById('btnAuto').addEventListener('click', () => sendCmd('mode_auto'));
+  ledcAttachPin(FL_PWM, C_BL); ledcAttachPin(FR_PWM, C_BR);
+  ledcAttachPin(BL_PWM, C_FL); ledcAttachPin(BR_PWM, C_FR);
 
-    // 速度スライダー調整
-    speedSlider.addEventListener('input', (e) => {
-      const val = e.target.value;
-      speedVal.textContent = val;
-      sendCmd('speed:' + val);
-    });
-  </script>
-</body>
-</html>
+  stopRobot();
+
+  BLEDevice::init(ROBOT_NAME);
+  BLEServer *pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  // RX（受信ポータル）
+  BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID_RX,
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+
+  // 🆕 TX（スマホへの送信ポータル）
+  pTxCharacteristic = pService->createCharacteristic(
+                        CHARACTERISTIC_UUID_TX,
+                        BLECharacteristic::PROPERTY_NOTIFY
+                      );
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  pService->start();
+
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  BLEDevice::startAdvertising();
+
+  Serial.println("BLE Robot Ready!");
+}
+
+void loop() {
+  if (currentMode == MODE_AUTO) {
+    autonomousBehavior();
+  }
+
+  // 🆕 安全自動停止（手動モード時、1秒間通信が無ければ即時停止）
+  if (currentMode == MODE_MANUAL && millis() - lastCmdTime > SAFETY_TIMEOUT) {
+    stopRobot();
+  }
+
+  // 🆕 4つのセンサー(S1~S4)の値をスマホへ送信 (200ms間隔)
+  if (deviceConnected && (millis() - lastSensorSendTime > 200)) {
+    lastSensorSendTime = millis();
+    int s1Val = analogRead(S1);
+    int s2Val = analogRead(S2);
+    int s3Val = analogRead(S3);
+    int s4Val = analogRead(S4);
+
+    String sensorData = "SENS:S1=" + String(s1Val) +
+                        ",S2=" + String(s2Val) +
+                        ",S3=" + String(s3Val) +
+                        ",S4=" + String(s4Val);
+    sendToPhone(sensorData);
+  }
+
+  delay(10);
+}
