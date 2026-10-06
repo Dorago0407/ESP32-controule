@@ -2,309 +2,353 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <!-- スマホの自動ズーム・虫眼鏡拡大を完全に禁止 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>BLE Robot Control</title>
+  <title>BLE Robot Controller</title>
   <style>
-    /* 長押し選択・虫眼鏡拡大を完全禁止 */
+    /* 虫眼鏡・ズーム・長押し選択を強力防止 */
     * {
       box-sizing: border-box;
       -webkit-touch-callout: none;
       -webkit-user-select: none;
       user-select: none;
-      touch-action: manipulation;
+      touch-action: none; /* スマホのジェスチャーを完全に無効化 */
     }
 
     body {
       margin: 0;
-      padding: 10px;
-      background-color: #03080c;
-      color: #00ffcc;
-      font-family: 'Courier New', Courier, monospace;
-      overflow: hidden;
-      height: 100vh;
-    }
-
-    /* 🆕 スタート画面（オーバーレイ） */
-    #startOverlay {
-      position: fixed;
-      top: 0;
-      left: 0;
+      padding: 0;
       width: 100vw;
       height: 100vh;
-      background: rgba(3, 8, 12, 0.95);
+      background-color: #010a0e;
+      color: #00f0ff;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-    }
-
-    .start-title {
-      font-size: 24px;
-      font-weight: bold;
-      color: #00ffcc;
-      text-shadow: 0 0 10px #00ffcc;
-      margin-bottom: 20px;
-      letter-spacing: 2px;
-    }
-
-    .btn-start {
-      width: 200px;
-      height: 60px;
-      border: 2px solid #00ffcc;
-      background: rgba(0, 255, 204, 0.1);
-      color: #00ffcc;
-      font-size: 18px;
-      font-weight: bold;
-      font-family: inherit;
-      cursor: pointer;
-      box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
-      clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
-    }
-
-    .btn-start:active {
-      background: #00ffcc;
-      color: #03080c;
+      /* 画面の走査線（CRTエフェクト） */
+      background-image: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.3),
+        rgba(0, 0, 0, 0.3) 1px,
+        transparent 1px,
+        transparent 2px
+      );
     }
 
     /* ヘッダー */
     .header {
+      height: 35px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid #00ffcc;
-      padding-bottom: 5px;
-      font-size: 12px;
-      margin-bottom: 10px;
+      padding: 0 15px;
+      border-bottom: 2px solid #00f0ff;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+      font-size: 13px;
+      letter-spacing: 1px;
     }
 
     .btn-disconnect {
-      color: #ff3366;
-      background: none;
-      border: 1px solid #ff3366;
-      padding: 2px 8px;
-      cursor: pointer;
+      background: transparent;
+      border: 1px solid #ff0055;
+      color: #ff0055;
+      padding: 3px 10px;
+      font-family: inherit;
       font-size: 11px;
+      cursor: pointer;
+      box-shadow: 0 0 5px rgba(ff, 0, 85, 0.4);
     }
 
-    /* メインレイアウト */
-    .main-container {
+    /* メインエリア */
+    .main-area {
+      flex: 1;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      height: calc(100vh - 60px);
+      padding: 10px 20px;
+      position: relative;
     }
 
-    /* 十字キー（左右配置） */
-    .control-col {
+    /* 左・右の大きな操作ボタンエリア */
+    .btn-column {
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      gap: 20px;
     }
 
-    .control-row {
+    .btn-row {
       display: flex;
-      gap: 15px;
+      gap: 20px;
     }
 
-    .btn-cyber {
-      width: 70px;
-      height: 70px;
-      border: 2px solid #00ffcc;
-      background: rgba(0, 255, 204, 0.05);
-      color: #00ffcc;
-      font-size: 24px;
+    /* サイバーパンク風の大きな四角ボタン */
+    .cyber-btn {
+      width: 110px;
+      height: 110px;
+      border: 2px solid #00f0ff;
+      background: rgba(0, 240, 255, 0.05);
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 8px rgba(0, 255, 204, 0.3);
+      box-shadow: inset 0 0 15px rgba(0, 240, 255, 0.2), 0 0 10px rgba(0, 240, 255, 0.3);
       cursor: pointer;
-      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
     }
 
-    .btn-cyber:active {
-      background: rgba(0, 255, 204, 0.4);
-      box-shadow: 0 0 15px rgba(0, 255, 204, 0.8);
+    /* 角のカッティング（元のデザイン再現） */
+    .cyber-btn::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      width: 15px;
+      height: 15px;
+      border-top: 2px solid #010a0e;
+      border-left: 2px solid #010a0e;
+      background: #010a0e;
     }
 
-    /* 中央パネル */
+    /* ネオン矢印アイコン */
+    .arrow-icon {
+      width: 0;
+      height: 0;
+      border-style: solid;
+      filter: drop-shadow(0 0 6px #00f0ff);
+    }
+
+    .arrow-up { border-width: 0 15px 22px 15px; border-color: transparent transparent #00f0ff transparent; }
+    .arrow-down { border-width: 22px 15px 0 15px; border-color: #00f0ff transparent transparent transparent; }
+    .arrow-left { border-width: 15px 22px 15px 0; border-color: transparent #00f0ff transparent transparent; }
+    .arrow-right { border-width: 15px 0 15px 22px; border-color: transparent transparent transparent #00f0ff; }
+
+    .cyber-btn:active {
+      background: rgba(0, 240, 255, 0.3);
+      box-shadow: inset 0 0 25px rgba(0, 240, 255, 0.6), 0 0 20px rgba(0, 240, 255, 0.8);
+    }
+
+    /* 中央メインパネル */
     .center-panel {
-      width: 50%;
+      width: 48%;
+      height: 100%;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      justify-content: space-between;
     }
 
-    .mode-switch {
+    /* タブ（MANUAL / AUTO） */
+    .tab-container {
       display: flex;
-      border: 1px solid #00ffcc;
+      border: 1px solid #00f0ff;
+      height: 38px;
     }
 
-    .mode-btn {
+    .tab-btn {
       flex: 1;
-      padding: 8px;
-      background: none;
+      background: transparent;
       border: none;
-      color: #00ffcc;
+      color: #00f0ff;
       font-family: inherit;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       cursor: pointer;
     }
 
-    .mode-btn.active {
-      background: #00ffcc;
-      color: #03080c;
+    .tab-btn.active {
+      background: #00f0ff;
+      color: #010a0e;
       font-weight: bold;
-      box-shadow: 0 0 10px #00ffcc;
+      box-shadow: 0 0 15px #00f0ff;
     }
 
-    .sensor-box {
-      border: 1px solid rgba(0, 255, 204, 0.3);
-      padding: 8px;
+    /* センサーパネル */
+    .sensor-panel {
+      border: 1px solid rgba(0, 240, 255, 0.5);
+      padding: 8px 12px;
+      background: rgba(0, 240, 255, 0.02);
       font-size: 11px;
-      background: rgba(0, 255, 204, 0.02);
     }
 
-    .sensor-nav {
+    .sensor-header {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 5px;
+      margin-bottom: 6px;
+      color: #00f0ff;
     }
 
     .sensor-row {
       display: flex;
       align-items: center;
+      gap: 10px;
       margin: 4px 0;
-      gap: 8px;
     }
 
     .sensor-bar-bg {
       flex: 1;
-      height: 8px;
-      background: rgba(0, 255, 204, 0.1);
-      border: 1px solid #00ffcc;
+      height: 10px;
+      border: 1px solid #00f0ff;
+      background: rgba(0, 0, 0, 0.5);
     }
 
     .sensor-bar-fill {
       height: 100%;
-      background: #00ffcc;
       width: 0%;
-      box-shadow: 0 0 5px #00ffcc;
+      background: #00f0ff;
+      box-shadow: 0 0 8px #00f0ff;
     }
 
-    .log-box {
-      border: 1px solid rgba(0, 255, 204, 0.3);
-      height: 55px;
-      font-size: 10px;
-      padding: 5px;
-      overflow-y: hidden;
-      color: #00cc99;
+    /* ターミナルログ表示 */
+    .terminal-box {
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      height: 75px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 6px;
+      font-size: 11px;
+      color: #00d2d3;
+      overflow: hidden;
+      line-height: 1.3;
     }
 
-    /* 非常停止ボタン */
-    .btn-emergency {
-      border: 2px solid #ff3366;
-      background: rgba(255, 51, 102, 0.1);
-      color: #ff3366;
-      padding: 10px;
+    /* 緊急停止ボタン */
+    .emergency-btn {
+      border: 2px solid #ff0055;
+      background: rgba(255, 0, 85, 0.05);
+      color: #ff0055;
       text-align: center;
+      padding: 10px;
       font-weight: bold;
+      font-size: 14px;
       letter-spacing: 2px;
-      box-shadow: 0 0 10px rgba(255, 51, 102, 0.4);
+      box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.3), 0 0 10px rgba(255, 0, 85, 0.4);
       cursor: pointer;
     }
 
-    .btn-emergency:active {
-      background: #ff3366;
+    .emergency-btn:active {
+      background: #ff0055;
       color: #fff;
+      box-shadow: 0 0 20px #ff0055;
+    }
+
+    /* 初期スタート（接続前）オーバーレイ */
+    #startOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(1, 10, 14, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .start-btn {
+      width: 240px;
+      height: 60px;
+      border: 2px solid #00f0ff;
+      background: rgba(0, 240, 255, 0.1);
+      color: #00f0ff;
+      font-size: 18px;
+      font-family: inherit;
+      font-weight: bold;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+      cursor: pointer;
+    }
+
+    .start-btn:active {
+      background: #00f0ff;
+      color: #010a0e;
     }
   </style>
 </head>
 <body>
 
-  <!-- 🆕 スタート（接続）画面 -->
+  <!-- スタート画面（オーバーレイ） -->
   <div id="startOverlay">
-    <div class="start-title">BLE ROBOT SYSTEM</div>
-    <button class="btn-start" id="startBtn">[ START / CONNECT ]</button>
+    <button class="start-btn" id="startConnectBtn">[ START / CONNECT ]</button>
   </div>
 
   <!-- ヘッダー -->
   <div class="header">
-    <div>STATUS: <span id="statusTxt" style="color:#ff3366;">DISCONNECTED</span></div>
-    <div id="clock">16:51:04</div>
-    <button class="btn-disconnect" id="headerConnBtn">[ DISCONNECT ]</button>
+    <div>STATUS: <span id="statusTxt" style="color:#00f0ff;">CONNECTED</span></div>
+    <div id="clockDisplay">16:51:04</div>
+    <button class="btn-disconnect" id="disconnectBtn">[ DISCONNECT ]</button>
   </div>
 
-  <!-- メインコンテンツ -->
-  <div class="main-container">
-    
-    <!-- 左：前後ボタン -->
-    <div class="control-col">
-      <div class="btn-cyber" id="btnForward">▲</div>
-      <div class="btn-cyber" id="btnBackward">▼</div>
+  <!-- メイン操作エリア -->
+  <div class="main-area">
+
+    <!-- 左：前・後ボタン -->
+    <div class="btn-column">
+      <div class="cyber-btn" id="btnForward"><div class="arrow-icon arrow-up"></div></div>
+      <div class="cyber-btn" id="btnBackward"><div class="arrow-icon arrow-down"></div></div>
     </div>
 
-    <!-- 中央：ステータス・操作パネル -->
+    <!-- 中央：ステータス＆操作パネル -->
     <div class="center-panel">
-      <!-- モード切り替え -->
-      <div class="mode-switch">
-        <button class="mode-btn active" id="btnManual">🎮 MANUAL</button>
-        <button class="mode-btn" id="btnAuto">🤖 AUTO</button>
+      <!-- タブ -->
+      <div class="tab-container">
+        <button class="tab-btn active" id="btnManual">🎮 MANUAL</button>
+        <button class="tab-btn" id="btnAuto">🤖 AUTO</button>
       </div>
 
       <!-- センサー表示 -->
-      <div class="sensor-box">
-        <div class="sensor-nav">
+      <div class="sensor-panel">
+        <div class="sensor-header">
           <span id="prevSens" style="cursor:pointer;">◄ PREV</span>
-          <span>SENSORS (<span id="sensPage">1</span>/2)</span>
+          <span>SENSORS (<span id="sensPageNum">1</span>/2)</span>
           <span id="nextSens" style="cursor:pointer;">NEXT ►</span>
         </div>
-        
-        <!-- Page 1: S1, S2 -->
+
+        <!-- Page 1 (S1, S2) -->
         <div id="sensPage1">
           <div class="sensor-row">
-            <span>S1</span> <span id="s1Num" style="width:30px; text-align:right;">0</span>
+            <span>S1</span> <span id="s1Val" style="width:30px; text-align:right;">0</span>
             <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="s1Bar"></div></div>
-            <span style="color:#666;">OFF</span>
+            <span style="color:#555;">OFF</span>
           </div>
           <div class="sensor-row">
-            <span>S2</span> <span id="s2Num" style="width:30px; text-align:right;">0</span>
-            <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="s2Bar"></div></div>
-            <span style="color:#666;">OFF</span>
+            <span>S2</span> <span id="s2Val" style="width:30px; text-align:right;">256</span>
+            <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="s2Bar" style="width: 15%;"></div></div>
+            <span style="color:#555;">OFF</span>
           </div>
         </div>
 
-        <!-- Page 2: S3, S4 -->
+        <!-- Page 2 (S3, S4) -->
         <div id="sensPage2" style="display:none;">
           <div class="sensor-row">
-            <span>S3</span> <span id="s3Num" style="width:30px; text-align:right;">0</span>
+            <span>S3</span> <span id="s3Val" style="width:30px; text-align:right;">0</span>
             <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="s3Bar"></div></div>
-            <span style="color:#666;">OFF</span>
+            <span style="color:#555;">OFF</span>
           </div>
           <div class="sensor-row">
-            <span>S4</span> <span id="s4Num" style="width:30px; text-align:right;">0</span>
+            <span>S4</span> <span id="s4Val" style="width:30px; text-align:right;">0</span>
             <div class="sensor-bar-bg"><div class="sensor-bar-fill" id="s4Bar"></div></div>
-            <span style="color:#666;">OFF</span>
+            <span style="color:#555;">OFF</span>
           </div>
         </div>
       </div>
 
-      <!-- ログ表示 -->
-      <div class="log-box" id="logBox">
+      <!-- ターミナルログ -->
+      <div class="terminal-box" id="logBox">
         :: EXEC: STOP ::<br>
         > STATUS: STOP
       </div>
 
       <!-- 緊急停止ボタン -->
-      <div class="btn-emergency" id="btnEmergency">
+      <div class="emergency-btn" id="btnEmergency">
         !! EMERGENCY STOP !!
       </div>
     </div>
 
-    <!-- 右：左右ボタン -->
-    <div class="control-row">
-      <div class="btn-cyber" id="btnLeft">◄</div>
-      <div class="btn-cyber" id="btnRight">►</div>
+    <!-- 右：左・右ボタン -->
+    <div class="btn-row">
+      <div class="cyber-btn" id="btnLeft"><div class="arrow-icon arrow-left"></div></div>
+      <div class="cyber-btn" id="btnRight"><div class="arrow-icon arrow-right"></div></div>
     </div>
 
   </div>
@@ -321,20 +365,18 @@
     // 時計更新
     setInterval(() => {
       const now = new Date();
-      document.getElementById('clock').textContent = now.toTimeString().split(' ')[0];
+      document.getElementById('clockDisplay').textContent = now.toTimeString().split(' ')[0];
     }, 1000);
 
+    // BLE 接続制御
     const startOverlay = document.getElementById('startOverlay');
-    const startBtn = document.getElementById('startBtn');
-    const headerConnBtn = document.getElementById('headerConnBtn');
+    const startConnectBtn = document.getElementById('startConnectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
     const statusTxt = document.getElementById('statusTxt');
 
-    // 接続処理
     async function connectBLE() {
       try {
         statusTxt.textContent = "CONNECTING...";
-        statusTxt.style.color = "#ffff00";
-
         bluetoothDevice = await navigator.bluetooth.requestDevice({
           filters: [{ namePrefix: "ROBOT" }],
           optionalServices: [SERVICE_UUID]
@@ -350,28 +392,22 @@
         txCharacteristic.addEventListener('characteristicvaluechanged', handleData);
 
         statusTxt.textContent = "CONNECTED";
-        statusTxt.style.color = "#00ffcc";
-        headerConnBtn.textContent = "[ DISCONNECT ]";
-        
-        // 接続成功したらスタート画面を隠す
+        statusTxt.style.color = "#00f0ff";
         startOverlay.style.display = 'none';
 
         bluetoothDevice.addEventListener('gattserverdisconnected', () => {
           statusTxt.textContent = "DISCONNECTED";
-          statusTxt.style.color = "#ff3366";
-          headerConnBtn.textContent = "[ CONNECT ]";
-          startOverlay.style.display = 'flex'; // 切断されたらスタート画面を再表示
+          statusTxt.style.color = "#ff0055";
+          startOverlay.style.display = 'flex';
         });
       } catch (e) {
         console.error(e);
         statusTxt.textContent = "ERROR";
-        statusTxt.style.color = "#ff3366";
       }
     }
 
-    // スタートボタン ＆ ヘッダー接続ボタンのイベント
-    startBtn.addEventListener('click', connectBLE);
-    headerConnBtn.addEventListener('click', () => {
+    startConnectBtn.addEventListener('click', connectBLE);
+    disconnectBtn.addEventListener('click', () => {
       if (bluetoothDevice && bluetoothDevice.gatt.connected) {
         bluetoothDevice.gatt.disconnect();
       } else {
@@ -385,7 +421,7 @@
       try {
         const encoder = new TextEncoder();
         await rxCharacteristic.writeValue(encoder.encode(cmd + "\n"));
-        addLog("> " + cmd.toUpperCase());
+        addLog("> STATUS: " + cmd.toUpperCase());
       } catch (e) {
         console.error(e);
       }
@@ -397,7 +433,7 @@
       logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // センサーデータの解析
+    // センサー解析
     function handleData(event) {
       const text = new TextDecoder().decode(event.target.value);
       if (text.startsWith("SENS:")) {
@@ -406,20 +442,20 @@
           const [key, val] = p.split("=");
           const num = parseInt(val) || 0;
           const pct = Math.min(100, Math.max(0, (num / 4095) * 100));
-          
-          if (key === "S1") { document.getElementById('s1Num').textContent = num; document.getElementById('s1Bar').style.width = pct + "%"; }
-          if (key === "S2") { document.getElementById('s2Num').textContent = num; document.getElementById('s2Bar').style.width = pct + "%"; }
-          if (key === "S3") { document.getElementById('s3Num').textContent = num; document.getElementById('s3Bar').style.width = pct + "%"; }
-          if (key === "S4") { document.getElementById('s4Num').textContent = num; document.getElementById('s4Bar').style.width = pct + "%"; }
+
+          if (key === "S1") { document.getElementById('s1Val').textContent = num; document.getElementById('s1Bar').style.width = pct + "%"; }
+          if (key === "S2") { document.getElementById('s2Val').textContent = num; document.getElementById('s2Bar').style.width = pct + "%"; }
+          if (key === "S3") { document.getElementById('s3Val').textContent = num; document.getElementById('s3Bar').style.width = pct + "%"; }
+          if (key === "S4") { document.getElementById('s4Val').textContent = num; document.getElementById('s4Bar').style.width = pct + "%"; }
         });
       }
     }
 
-    // 操作ボタン（タッチによる拡大防止付き）
+    // タッチ＆拡大防止バインド
     function bindBtn(id, cmd) {
       const el = document.getElementById(id);
-      const start = (e) => { e.preventDefault(); sendCmd(cmd); };
-      const stop = (e) => { e.preventDefault(); sendCmd("stop"); };
+      const start = (e) => { e.preventDefault(); e.stopPropagation(); sendCmd(cmd); };
+      const stop = (e) => { e.preventDefault(); e.stopPropagation(); sendCmd("stop"); };
 
       el.addEventListener('touchstart', start, { passive: false });
       el.addEventListener('touchend', stop, { passive: false });
@@ -437,7 +473,7 @@
       sendCmd('stop');
     });
 
-    // モード切替
+    // モード切り替え
     const btnManual = document.getElementById('btnManual');
     const btnAuto = document.getElementById('btnAuto');
 
@@ -453,13 +489,13 @@
       sendCmd('mode_auto');
     });
 
-    // センサーページ切替
+    // センサーページ切り替え
     document.getElementById('prevSens').addEventListener('click', toggleSensPage);
     document.getElementById('nextSens').addEventListener('click', toggleSensPage);
 
     function toggleSensPage() {
       currentSensPage = currentSensPage === 1 ? 2 : 1;
-      document.getElementById('sensPage').textContent = currentSensPage;
+      document.getElementById('sensPageNum').textContent = currentSensPage;
       document.getElementById('sensPage1').style.display = currentSensPage === 1 ? 'block' : 'none';
       document.getElementById('sensPage2').style.display = currentSensPage === 2 ? 'block' : 'none';
     }
