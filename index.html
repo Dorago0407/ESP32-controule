@@ -18,144 +18,131 @@
       text-align: center;
       background-color: #f0f2f5;
       margin: 0;
-      padding: 10px;
+      padding: 15px;
+      overflow: hidden;
     }
 
-    h3 { margin: 5px 0; }
+    h2 {
+      margin: 10px 0;
+      font-size: 20px;
+    }
 
     .status-panel {
       background: #fff;
-      padding: 8px;
+      padding: 10px;
       border-radius: 8px;
-      margin-bottom: 10px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      font-size: 13px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      font-size: 14px;
     }
 
     .btn-connect {
       background-color: #007bff;
       color: white;
       border: none;
-      padding: 8px 16px;
-      font-size: 14px;
-      border-radius: 20px;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 25px;
       cursor: pointer;
       font-weight: bold;
     }
 
-    /* センサー値の表示欄 (測距とフォト) */
-    .sensor-container {
-      display: flex;
-      justify-content: space-between;
-      gap: 5px;
-      margin-top: 6px;
-    }
-
-    .sensor-box {
-      flex: 1;
-      background: #e9ecef;
-      padding: 6px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-family: monospace;
-      text-align: left;
-    }
-
-    .sensor-box.active {
-      background: #d1e7dd;
-      border: 1px solid #0f5132;
-    }
-
-    .sensor-title {
-      font-weight: bold;
-      margin-bottom: 2px;
-      text-align: center;
-    }
-
-    /* コントローラー */
     .controller {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      max-width: 260px;
-      margin: 10px auto;
+      gap: 10px;
+      max-width: 300px;
+      margin: 15px auto;
     }
 
     .btn-ctrl {
       background-color: #28a745;
       color: white;
       border: none;
-      border-radius: 10px;
-      height: 60px;
-      font-size: 18px;
+      border-radius: 12px;
+      height: 70px;
+      font-size: 20px;
       font-weight: bold;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 3px 5px rgba(0,0,0,0.15);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     }
 
-    .btn-ctrl:active { transform: scale(0.95); background-color: #1e7e34; }
-    .btn-stop { background-color: #dc3545; }
+    .btn-ctrl:active {
+      transform: scale(0.95);
+      background-color: #1e7e34;
+    }
 
-    /* 設定パネル */
+    .btn-stop {
+      background-color: #dc3545;
+    }
+
+    .btn-stop:active {
+      background-color: #bd2130;
+    }
+
     .control-panel {
       background: #fff;
-      padding: 10px;
+      padding: 15px;
       border-radius: 8px;
-      max-width: 280px;
+      max-width: 300px;
       margin: 0 auto;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .mode-group, .slider-group, .sensor-select-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin-top: 5px;
+    }
+
+    .sensor-display {
+      font-family: monospace;
       font-size: 13px;
-    }
-
-    .mode-group { margin-bottom: 8px; }
-
-    /* 小さく追加したセンサー切替用スタイル */
-    .mini-btn-group {
+      background: #e9ecef;
+      padding: 6px;
+      border-radius: 4px;
       margin-top: 6px;
-      padding-top: 6px;
-      border-top: 1px dashed #ccc;
+      text-align: left;
     }
 
-    .btn-mini {
+    /* 🆕 小さな切り替えボタン用スタイル */
+    .btn-small {
       font-size: 11px;
       padding: 3px 8px;
-      margin: 0 2px;
+      margin: 2px;
       border: 1px solid #6c757d;
-      border-radius: 4px;
       background-color: #f8f9fa;
+      border-radius: 4px;
       cursor: pointer;
     }
-
-    .btn-mini.active {
-      background-color: #6c757d;
-      color: white;
+    .btn-small:active {
+      background-color: #e2e6ea;
     }
-
-    input[type="range"] { width: 100%; }
   </style>
 </head>
 <body>
 
-  <h3>BLE Robot Controller</h3>
+  <h2>BLE Robot Control</h2>
 
   <button id="connectBtn" class="btn-connect">BLE接続</button>
 
   <div class="status-panel">
-    <div>接続: <span id="connStatus" style="color:red; font-weight:bold;">未接続</span></div>
+    <div>接続状態: <span id="connStatus" style="color:red; font-weight:bold;">未接続</span></div>
     
-    <!-- 画面上の測距・フォト センサー値表示欄 -->
-    <div class="sensor-container">
-      <div id="boxDist" class="sensor-box active">
-        <div class="sensor-title">【測距 (1-4)】</div>
-        <div id="distVal">S1: ---<br>S2: ---<br>S3: ---<br>S4: ---</div>
-      </div>
-      <div id="boxPhoto" class="sensor-box">
-        <div class="sensor-title">【フォト (1-4)】</div>
-        <div id="photoVal">S1: ---<br>S2: ---<br>S3: ---<br>S4: ---</div>
-      </div>
-    </div>
+    <!-- 測距センサーとフォトセンサーの各表示欄 -->
+    <div id="tofDisplay" class="sensor-display">測距(S1/S2): S1=--- | S2=---</div>
+    <div id="photoDisplay" class="sensor-display">フォト(S3/S4): S3=--- | S4=---</div>
+    <div id="selectedDisplay" class="sensor-display" style="background:#e2e3e5; font-weight:bold;">選択中: 測距 1番 (S1)</div>
   </div>
 
   <!-- 十字キー -->
@@ -163,31 +150,33 @@
     <div></div>
     <button class="btn-ctrl" id="btnForward">▲</button>
     <div></div>
+    
     <button class="btn-ctrl" id="btnLeft">◄</button>
     <button class="btn-ctrl btn-stop" id="btnStop">■</button>
     <button class="btn-ctrl" id="btnRight">►</button>
+    
     <div></div>
     <button class="btn-ctrl" id="btnBackward">▼</button>
     <div></div>
   </div>
 
-  <!-- モード切替 & 小さく追加したセンサー切替ボタン -->
+  <!-- 操作パネル -->
   <div class="control-panel">
     <div class="mode-group">
-      <span style="font-weight:bold;">モード:</span>
-      <button id="btnManual" style="padding: 4px 8px;">手動</button>
-      <button id="btnAuto" style="padding: 4px 8px;">自動</button>
-
-      <!-- ▼ マニュアル・オートボタンのすぐ下に追加（小さめの表示切替） ▼ -->
-      <div class="mini-btn-group">
-        <span style="font-size: 11px; color: #555;">確認センサー選択:</span>
-        <button id="btnSelectDist" class="btn-mini active">測距</button>
-        <button id="btnSelectPhoto" class="btn-mini">フォト</button>
-      </div>
+      <label>動作モード:</label><br>
+      <button id="btnManual" style="padding: 6px 12px;">手動</button>
+      <button id="btnAuto" style="padding: 6px 12px;">自動</button>
     </div>
 
-    <div style="margin-top: 8px;">
-      <label style="font-weight:bold; font-size:12px;">速度: <span id="speedVal">220</span></label>
+    <!-- 🆕 マニュアル/オートの下に追加した小さなセンサー切替ボタン -->
+    <div class="sensor-select-group">
+      <label style="font-size: 12px;">センサー選択 (確認用):</label><br>
+      <button class="btn-small" id="btnTofToggle">測距: <span id="tofNum">1番</span></button>
+      <button class="btn-small" id="btnPhotoToggle">フォト: <span id="photoNum">1番</span></button>
+    </div>
+
+    <div class="slider-group">
+      <label>速度調整: <span id="speedVal">220</span></label>
       <input type="range" id="speedSlider" min="0" max="255" value="220">
     </div>
   </div>
@@ -199,15 +188,21 @@
 
     let rxCharacteristic = null;
     let bluetoothDevice = null;
-    let currentSensorType = "dist"; // "dist" または "photo"
+
+    // センサー管理変数
+    let tofIndex = 1;   // 1: S1, 2: S2
+    let photoIndex = 1; // 1: S3, 2: S4
+    let lastSensorData = { S1: 0, S2: 0, S3: 0, S4: 0 };
 
     const connectBtn = document.getElementById('connectBtn');
     const connStatus = document.getElementById('connStatus');
-    const distVal = document.getElementById('distVal');
-    const photoVal = document.getElementById('photoVal');
-    const boxDist = document.getElementById('boxDist');
-    const boxPhoto = document.getElementById('boxPhoto');
+    const tofDisplay = document.getElementById('tofDisplay');
+    const photoDisplay = document.getElementById('photoDisplay');
+    const selectedDisplay = document.getElementById('selectedDisplay');
+    const speedSlider = document.getElementById('speedSlider');
+    const speedVal = document.getElementById('speedVal');
 
+    // BLE 接続処理
     connectBtn.addEventListener('click', async () => {
       try {
         connStatus.textContent = "接続中...";
@@ -229,71 +224,86 @@
         connStatus.style.color = "green";
         connectBtn.style.display = "none";
 
-        bluetoothDevice.addEventListener('gattserverdisconnected', () => {
-          connStatus.textContent = "切断されました";
-          connStatus.style.color = "red";
-          connectBtn.style.display = "inline-block";
-        });
+        bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
       } catch (error) {
+        console.error(error);
         connStatus.textContent = "接続失敗";
         connStatus.style.color = "red";
       }
     });
+
+    function onDisconnected() {
+      connStatus.textContent = "切断されました";
+      connStatus.style.color = "red";
+      connectBtn.style.display = "inline-block";
+    }
 
     async function sendCmd(cmd) {
       if (!rxCharacteristic) return;
       try {
         const encoder = new TextEncoder();
         await rxCharacteristic.writeValue(encoder.encode(cmd + "\n"));
-      } catch (e) {}
+      } catch (e) {
+        console.error("送信エラー:", e);
+      }
     }
 
-    // センサー値を受信して画面の枠内にそれぞれ反映
+    // センサーデータ受信・表示更新
     function handleSensorData(event) {
       const decoder = new TextDecoder('utf-8');
       const text = decoder.decode(event.target.value);
       
       if (text.startsWith("SENS:")) {
-        // データ解析 S1=...,S2=...
-        const raw = text.replace("SENS:", "");
-        const parts = raw.split(",");
-        let formatted = "";
-        
-        parts.forEach(p => {
-          formatted += p.trim() + "<br>";
+        // パース処理 (SENS:S1=xxx,S2=xxx,S3=xxx,S4=xxx)
+        const items = text.replace("SENS:", "").split(",");
+        items.forEach(item => {
+          const [key, val] = item.split("=");
+          if (key && val) lastSensorData[key] = val;
         });
 
-        // 現在選択されている種類に応じて表示枠をハイライト・更新
-        if (currentSensorType === "dist") {
-          distVal.innerHTML = formatted;
-        } else {
-          photoVal.innerHTML = formatted;
-        }
+        // 欄に値を反映
+        tofDisplay.textContent = `測距(S1/S2): S1=${lastSensorData.S1} | S2=${lastSensorData.S2}`;
+        photoDisplay.textContent = `フォト(S3/S4): S3=${lastSensorData.S3} | S4=${lastSensorData.S4}`;
+
+        updateSelectedView();
       }
     }
 
-    // ▼ センサー種別の選択切替（小さく追加したボタンの処理） ▼
-    document.getElementById('btnSelectDist').addEventListener('click', () => {
-      currentSensorType = "dist";
-      document.getElementById('btnSelectDist').classList.add('active');
-      document.getElementById('btnSelectPhoto').classList.remove('active');
-      boxDist.classList.add('active');
-      boxPhoto.classList.remove('active');
+    // 選択されたセンサー値の強調表示を更新
+    function updateSelectedView() {
+      const activeTofKey = tofIndex === 1 ? 'S1' : 'S2';
+      const activePhotoKey = photoIndex === 1 ? 'S3' : 'S4';
+      
+      selectedDisplay.textContent = 
+        `選択中 測距:${tofIndex}番(${activeTofKey}=${lastSensorData[activeTofKey]}) | フォト:${photoIndex}番(${activePhotoKey}=${lastSensorData[activePhotoKey]})`;
+    }
+
+    // 🆕 ボタンでの番号切り替え処理（1番 ↔ 2番）
+    document.getElementById('btnTofToggle').addEventListener('click', () => {
+      tofIndex = tofIndex === 1 ? 2 : 1;
+      document.getElementById('tofNum').textContent = tofIndex + "番";
+      updateSelectedView();
     });
 
-    document.getElementById('btnSelectPhoto').addEventListener('click', () => {
-      currentSensorType = "photo";
-      document.getElementById('btnSelectPhoto').classList.add('active');
-      document.getElementById('btnSelectDist').classList.remove('active');
-      boxPhoto.classList.add('active');
-      boxDist.classList.remove('active');
+    document.getElementById('btnPhotoToggle').addEventListener('click', () => {
+      photoIndex = photoIndex === 1 ? 2 : 1;
+      document.getElementById('photoNum').textContent = photoIndex + "番";
+      updateSelectedView();
     });
 
-    // ボタンイベント
+    // タッチイベント関係
     function bindBtn(elementId, cmd) {
       const btn = document.getElementById(elementId);
-      const startAction = (e) => { e.preventDefault(); sendCmd(cmd); };
-      const stopAction = (e) => { e.preventDefault(); sendCmd("stop"); };
+      
+      const startAction = (e) => {
+        e.preventDefault();
+        sendCmd(cmd);
+      };
+
+      const stopAction = (e) => {
+        e.preventDefault();
+        sendCmd("stop");
+      };
 
       btn.addEventListener('touchstart', startAction, { passive: false });
       btn.addEventListener('touchend', stopAction, { passive: false });
@@ -306,13 +316,18 @@
     bindBtn('btnLeft', 'left');
     bindBtn('btnRight', 'right');
 
-    document.getElementById('btnStop').addEventListener('click', (e) => { e.preventDefault(); sendCmd('stop'); });
+    document.getElementById('btnStop').addEventListener('click', (e) => {
+      e.preventDefault();
+      sendCmd('stop');
+    });
+
     document.getElementById('btnManual').addEventListener('click', () => sendCmd('mode_manual'));
     document.getElementById('btnAuto').addEventListener('click', () => sendCmd('mode_auto'));
 
-    document.getElementById('speedSlider').addEventListener('input', (e) => {
-      document.getElementById('speedVal').textContent = e.target.value;
-      sendCmd('speed:' + e.target.value);
+    speedSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      speedVal.textContent = val;
+      sendCmd('speed:' + val);
     });
   </script>
 </body>
