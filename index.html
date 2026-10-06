@@ -28,20 +28,19 @@
         
         /* 中央モニター */
         .monitor { background: rgba(0,255,255,0.02); border: 1px solid rgba(0,255,255,0.2); padding: 10px; font-size: 10px; }
-        #console-log { height: 50px; overflow: hidden; color: var(--neon-green); margin-top: 5px; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 5px; }
+        #console-log { height: 60px; overflow: hidden; color: var(--neon-green); margin-top: 5px; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 5px; }
 
         /* モード切り替えボタンのデザイン */
-        .mode-toggle-container { display: flex; justify-content: space-between; margin-bottom: 8px; gap: 6px; }
-        .mode-toggle-btn { flex: 1; padding: 6px 0; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-family: inherit; font-size: 11px; cursor: pointer; transition: 0.3s; }
+        .mode-toggle-container { display: flex; justify-content: space-between; margin-bottom: 10px; gap: 6px; }
+        .mode-toggle-btn { flex: 1; padding: 8px 0; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-family: inherit; font-size: 12px; cursor: pointer; transition: 0.3s; }
         .mode-toggle-btn.active { background: var(--neon-blue); color: #000; font-weight: bold; box-shadow: 0 0 12px var(--neon-blue); }
 
-        /* 🆕 速度スライダー UI */
-        .slider-container { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 10px; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 6px; }
-        .slider-container input[type=range] { flex: 1; accent-color: var(--neon-blue); cursor: pointer; }
-
-        /* 🆕 センサー表示 UI */
-        .sensor-container { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 6px 0; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 6px; }
-        .sensor-item { background: rgba(0, 255, 255, 0.05); border: 1px solid rgba(0, 255, 255, 0.2); padding: 3px 5px; font-size: 10px; display: flex; justify-content: space-between; }
+        /* 🆕 センサー表示用スタイル */
+        .sensor-panel { margin-top: 6px; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 6px; }
+        .sensor-btn-group { display: flex; gap: 6px; margin-bottom: 4px; }
+        .sensor-btn { flex: 1; padding: 4px 0; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-family: inherit; font-size: 10px; cursor: pointer; }
+        .sensor-btn.active { background: var(--neon-blue); color: #000; font-weight: bold; }
+        .sensor-value-box { font-size: 12px; color: var(--neon-green); text-align: center; padding: 2px 0; }
 
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         #portrait-warning { position: fixed; inset: 0; background: #000; z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; color: var(--neon-red); text-align: center; }
@@ -68,11 +67,11 @@
         <div class="controller-root">
             <!-- 左：前後 -->
             <div style="display:grid; gap:20px;">
-                <div class="btn" id="btn-forward">▲</div>
-                <div class="btn" id="btn-backward">▼</div>
+                <div class="btn" ontouchstart="send('forward')" ontouchend="send('stop')">▲</div>
+                <div class="btn" ontouchstart="send('backward')" ontouchend="send('stop')">▼</div>
             </div>
 
-            <!-- 中央：メイン情報パネル（モード切替・速度・センサー追加） -->
+            <!-- 中央：メイン情報パネル -->
             <div class="monitor" style="width: 280px; position: relative;">
                 
                 <!-- モード切り替えスイッチ -->
@@ -81,20 +80,17 @@
                     <button class="mode-toggle-btn" id="btn-auto" onclick="switchControlMode('auto')">🤖 AUTO</button>
                 </div>
 
-                <div id="value-display" style="font-size: 13px; border-bottom: 1px solid #0ff; margin-bottom: 4px; color: var(--neon-green);">:: READY ::</div>
+                <div id="value-display" style="font-size: 14px; border-bottom: 1px solid #0ff; margin-bottom: 6px; color: var(--neon-green);">:: READY ::</div>
 
-                <!-- 🆕 速度スライダー -->
-                <div class="slider-container">
-                    <span>SPD: <span id="speed-val" style="color:var(--neon-green)">220</span></span>
-                    <input type="range" id="speed-slider" min="0" max="255" value="220" onchange="sendSpeed(this.value)">
-                </div>
-
-                <!-- 🆕 センサーリアルタイム表示 -->
-                <div class="sensor-container">
-                    <div class="sensor-item">S1: <span id="s1-val" style="color:var(--neon-green)">0</span></div>
-                    <div class="sensor-item">S2: <span id="s2-val" style="color:var(--neon-green)">0</span></div>
-                    <div class="sensor-item">S3: <span id="s3-val" style="color:var(--neon-green)">0</span></div>
-                    <div class="sensor-item">S4: <span id="s4-val" style="color:var(--neon-green)">0</span></div>
+                <!-- 🆕 センサー切り替え表示エリア -->
+                <div class="sensor-panel">
+                    <div class="sensor-btn-group">
+                        <button class="sensor-btn active" id="btn-sens-1" onclick="selectSensor(1)">[ SENSOR 1 ]</button>
+                        <button class="sensor-btn" id="btn-sens-2" onclick="selectSensor(2)">[ SENSOR 2 ]</button>
+                    </div>
+                    <div class="sensor-value-box">
+                        <span id="sensor-label">SENSOR 1:</span> <span id="sensor-value">0</span>
+                    </div>
                 </div>
 
                 <div id="console-log">> BLE SYSTEM READY...</div>
@@ -102,13 +98,13 @@
 
             <!-- 右：左右 -->
             <div style="display:grid; gap:20px; grid-template-columns: 90px 90px;">
-                <div class="btn" id="btn-left">◀</div>
-                <div class="btn" id="btn-right">▶</div>
+                <div class="btn" ontouchstart="send('left')" ontouchend="send('stop')">◀</div>
+                <div class="btn" ontouchstart="send('right')" ontouchend="send('stop')">▶</div>
             </div>
         </div>
 
         <div style="text-align: center; padding-bottom: 20px;">
-            <button class="btn" id="btn-stop" style="width: 240px; height: 45px; border-color: var(--neon-red); color: var(--neon-red); font-size: 14px; clip-path: none; border-radius: 5px;">!! EMERGENCY STOP !!</button>
+            <button class="btn" style="width: 240px; height: 45px; border-color: var(--neon-red); color: var(--neon-red); font-size: 14px; clip-path: none; border-radius: 5px;" ontouchstart="emergencyStop()">!! EMERGENCY STOP !!</button>
         </div>
     </div>
 
@@ -125,7 +121,8 @@
 
         let rxCharacteristic;
         let txCharacteristic;
-        let sendInterval = null;
+        let activeSensor = 1;
+        let sensorValues = { 1: 0, 2: 0 };
 
         async function connectBLE() {
             try {
@@ -139,13 +136,13 @@
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 rxCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_RX);
 
-                // 🆕 センサーデータ通知（Notify）受信設定
+                // センサー値受信用のTX Characteristic（ Notify ）の準備
                 try {
                     txCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_TX);
                     await txCharacteristic.startNotifications();
                     txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
-                } catch(e) {
-                    console.log("TX Characteristic not found or notify error");
+                } catch (e) {
+                    console.log("TX Characteristic Notification not supported or missing");
                 }
 
                 document.getElementById('start-screen').style.display = 'none';
@@ -158,19 +155,31 @@
             }
         }
 
-        // 🆕 ESP32からのセンサー数値を受信して画面更新する処理
+        // 🆕 センサー受信用処理（ESP32から "S1:123" や "S2:456" 等の文字列が届いた場合）
         function handleNotifications(event) {
-            const value = new TextDecoder().decode(event.target.value);
-            if (value.startsWith("SENS:")) {
-                const parts = value.replace("SENS:", "").split(",");
-                parts.forEach(part => {
-                    const [key, val] = part.split("=");
-                    if (key === "S1") document.getElementById("s1-val").textContent = val;
-                    if (key === "S2") document.getElementById("s2-val").textContent = val;
-                    if (key === "S3") document.getElementById("s3-val").textContent = val;
-                    if (key === "S4") document.getElementById("s4-val").textContent = val;
-                });
+            const str = new TextDecoder().decode(event.target.value).trim();
+            if (str.startsWith("S1:")) {
+                sensorValues[1] = str.replace("S1:", "");
+            } else if (str.startsWith("S2:")) {
+                sensorValues[2] = str.replace("S2:", "");
             }
+            updateSensorDisplay();
+        }
+
+        // 🆕 ボタンで1番/2番を切り替える処理
+        function selectSensor(num) {
+            activeSensor = num;
+            document.getElementById('btn-sens-1').classList.toggle('active', num === 1);
+            document.getElementById('btn-sens-2').classList.toggle('active', num === 2);
+            document.getElementById('sensor-label').textContent = `SENSOR ${num}:`;
+            
+            // ESP32側に「どちらのセンサーを要求するか」のコマンドも送る場合（必要に応じて使用）
+            send(`get_s${num}`);
+            updateSensorDisplay();
+        }
+
+        function updateSensorDisplay() {
+            document.getElementById('sensor-value').textContent = sensorValues[activeSensor];
         }
 
         // モード切り替え処理
@@ -193,18 +202,8 @@
 
         // 緊急停止処理
         function emergencyStop() {
-            if (sendInterval) {
-                clearInterval(sendInterval);
-                sendInterval = null;
-            }
             switchControlMode('manual');
             send('stop');
-        }
-
-        // 🆕 速度送信処理
-        function sendSpeed(val) {
-            document.getElementById('speed-val').textContent = val;
-            send(`speed:${val}`);
         }
 
         function send(cmd) {
@@ -213,54 +212,9 @@
             
             if (rxCharacteristic) {
                 const encoder = new TextEncoder();
-                rxCharacteristic.writeValueWithoutResponse(encoder.encode(cmd)).catch(() => {
-                    rxCharacteristic.writeValue(encoder.encode(cmd));
-                });
+                rxCharacteristic.writeValue(encoder.encode(cmd));
             }
         }
-
-        // 🆕 連射（長押し100ms周期送信）のイベント登録機能
-        function bindControl(elementId, command) {
-            const btn = document.getElementById(elementId);
-            if (!btn) return;
-
-            const start = (e) => {
-                if (e) e.preventDefault();
-                send(command);
-
-                if (sendInterval) clearInterval(sendInterval);
-                sendInterval = setInterval(() => {
-                    send(command);
-                }, 100);
-            };
-
-            const stop = (e) => {
-                if (e) e.preventDefault();
-                if (sendInterval) {
-                    clearInterval(sendInterval);
-                    sendInterval = null;
-                }
-                send('stop');
-            };
-
-            btn.addEventListener('touchstart', start, { passive: false });
-            btn.addEventListener('touchend', stop, { passive: false });
-            btn.addEventListener('touchcancel', stop, { passive: false });
-            btn.addEventListener('mousedown', start);
-            btn.addEventListener('mouseup', stop);
-            btn.addEventListener('mouseleave', stop);
-        }
-
-        // 各ボタンへ連射イベントを適用
-        bindControl("btn-forward", "forward");
-        bindControl("btn-backward", "backward");
-        bindControl("btn-left", "left");
-        bindControl("btn-right", "right");
-
-        // 非常停止ボタンの設定
-        const stopBtn = document.getElementById("btn-stop");
-        stopBtn.addEventListener('touchstart', (e) => { e.preventDefault(); emergencyStop(); }, { passive: false });
-        stopBtn.addEventListener('click', emergencyStop);
 
         function addLog(msg) {
             const log = document.getElementById('console-log');
