@@ -34,7 +34,7 @@
         .mode-toggle-btn { flex: 1; padding: 6px 0; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-family: inherit; font-size: 11px; cursor: pointer; transition: 0.3s; }
         .mode-toggle-btn.active { background: var(--neon-blue); color: #000; font-weight: bold; box-shadow: 0 0 12px var(--neon-blue); }
 
-        /* 🆕 ビュー（操作・デバッグ）切り替えタブ */
+        /* ビュー（操作・デバッグ）切り替えタブ */
         .view-tab-container { display: flex; gap: 4px; border-bottom: 1px solid rgba(0,255,255,0.2); padding-bottom: 6px; margin-bottom: 8px; }
         .view-tab { flex: 1; padding: 4px 0; background: transparent; border: 1px solid rgba(0,255,255,0.3); color: var(--neon-blue); font-family: inherit; font-size: 10px; cursor: pointer; }
         .view-tab.active { background: rgba(0, 255, 255, 0.2); border-color: var(--neon-blue); font-weight: bold; }
@@ -44,9 +44,9 @@
         .sensor-btn-group { display: flex; gap: 6px; margin-bottom: 4px; }
         .sensor-btn { flex: 1; padding: 4px 0; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-family: inherit; font-size: 10px; cursor: pointer; }
         .sensor-btn.active { background: var(--neon-blue); color: #000; font-weight: bold; }
-        .sensor-value-box { font-size: 12px; color: var(--neon-green); text-align: center; padding: 2px 0; }
+        .sensor-value-box { font-size: 11px; color: var(--neon-green); text-align: center; padding: 2px 0; }
 
-        /* 🆕 デバッグパネル用スタイル */
+        /* デバッグパネル用スタイル */
         #debug-panel { display: none; }
         #console-log { height: 110px; overflow-y: auto; color: var(--neon-green); background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,255,0.2); padding: 5px; word-break: break-all; font-size: 9px; }
 
@@ -82,7 +82,7 @@
             <!-- 中央：メイン情報パネル -->
             <div class="monitor" style="width: 280px; position: relative;">
                 
-                <!-- 🆕 タブ切替（CTRL モード / DEBUG モード） -->
+                <!-- タブ切替（CTRL モード / DEBUG モード） -->
                 <div class="view-tab-container">
                     <button class="view-tab active" id="tab-ctrl" onclick="switchView('ctrl')">🎮 CTRL</button>
                     <button class="view-tab" id="tab-debug" onclick="switchView('debug')">🐞 DEBUG</button>
@@ -98,19 +98,21 @@
 
                     <div id="value-display" style="font-size: 14px; border-bottom: 1px solid #0ff; margin-bottom: 6px; color: var(--neon-green);">:: READY ::</div>
 
-                    <!-- センサー切り替え表示エリア -->
+                    <!-- 🆕 測距センサー表示エリア（計算後の距離cmと生データを併記） -->
                     <div class="sensor-panel">
                         <div class="sensor-btn-group">
-                            <button class="sensor-btn active" id="btn-sens-1" onclick="selectSensor(1)">[ SENSOR 1 ]</button>
-                            <button class="sensor-btn" id="btn-sens-2" onclick="selectSensor(2)">[ SENSOR 2 ]</button>
+                            <button class="sensor-btn active" id="btn-sens-1" onclick="selectSensor(1)">[ DIST SENS 1 ]</button>
+                            <button class="sensor-btn" id="btn-sens-2" onclick="selectSensor(2)">[ DIST SENS 2 ]</button>
                         </div>
                         <div class="sensor-value-box">
-                            <span id="sensor-label">SENSOR 1:</span> <span id="sensor-value">0</span>
+                            <span id="sensor-label">DIST 1:</span> 
+                            <span id="sensor-dist-val" style="font-size: 14px; font-weight: bold; color: var(--neon-green);">0 cm</span>
+                            <div style="font-size: 9px; color: gray;">( RAW: <span id="sensor-raw-val">0</span> )</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 🆕 2️⃣ デバッグ専用画面（シリアルモニター） -->
+                <!-- 2️⃣ デバッグ専用画面（シリアルモニター） -->
                 <div id="debug-panel">
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:var(--neon-blue);">
                         <span>SERIAL MONITOR</span>
@@ -147,7 +149,7 @@
         let rxCharacteristic;
         let txCharacteristic;
         let activeSensor = 1;
-        let sensorValues = { 1: 0, 2: 0 };
+        let sensorRawValues = { 1: 0, 2: 0 };
 
         async function connectBLE() {
             try {
@@ -179,7 +181,6 @@
             }
         }
 
-        // 🆕 画面切り替え（CTRL / DEBUG）
         function switchView(view) {
             const ctrlPanel = document.getElementById('ctrl-panel');
             const debugPanel = document.getElementById('debug-panel');
@@ -199,14 +200,27 @@
             }
         }
 
+        // 🆕 測距計算式関数
+        // ※ 超音波センサ（マイクロ秒μs）の場合: 距離(cm) = 時間(μs) / 58
+        // ※ アナログ赤外線距離センサ（ADC値 0〜4095）の場合: 式を変更可能
+        function calculateDistance(rawValue) {
+            const val = parseFloat(rawValue);
+            if (isNaN(val) || val <= 0) return 0;
+
+            // 超音波センサ（μs）換算例（必要に応じてセンサーの計算式に微調整可能）
+            const distanceCm = val / 58.0; 
+            
+            return distanceCm.toFixed(1); // 小数点第1位まで出力
+        }
+
         function handleNotifications(event) {
             const str = new TextDecoder().decode(event.target.value).trim();
             
             if (str.startsWith("S1:")) {
-                sensorValues[1] = str.replace("S1:", "");
+                sensorRawValues[1] = str.replace("S1:", "");
                 updateSensorDisplay();
             } else if (str.startsWith("S2:")) {
-                sensorValues[2] = str.replace("S2:", "");
+                sensorRawValues[2] = str.replace("S2:", "");
                 updateSensorDisplay();
             } else {
                 addLog(`[ESP32] ${str}`);
@@ -217,14 +231,18 @@
             activeSensor = num;
             document.getElementById('btn-sens-1').classList.toggle('active', num === 1);
             document.getElementById('btn-sens-2').classList.toggle('active', num === 2);
-            document.getElementById('sensor-label').textContent = `SENSOR ${num}:`;
+            document.getElementById('sensor-label').textContent = `DIST ${num}:`;
             
             send(`get_s${num}`);
             updateSensorDisplay();
         }
 
         function updateSensorDisplay() {
-            document.getElementById('sensor-value').textContent = sensorValues[activeSensor];
+            const rawVal = sensorRawValues[activeSensor];
+            const distVal = calculateDistance(rawVal);
+
+            document.getElementById('sensor-raw-val').textContent = rawVal;
+            document.getElementById('sensor-dist-val').textContent = `${distVal} cm`;
         }
 
         function switchControlMode(mode) {
@@ -265,7 +283,6 @@
             log.scrollTop = log.scrollHeight;
         }
 
-        // 🆕 ログ消去処理
         function clearLog() {
             document.getElementById('console-log').innerHTML = "> LOG CLEARED...<br>";
         }
