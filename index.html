@@ -42,7 +42,7 @@
         /* センサー表示スタイル */
         .sensor-panel { margin-top: 6px; border-top: 1px solid rgba(0,255,255,0.1); padding-top: 6px; }
         
-        /* 🆕 フォト/測距 センサカテゴリ切り替え */
+        /* フォト/測距 センサカテゴリ切り替え */
         .sensor-category-group { display: flex; gap: 4px; margin-bottom: 6px; }
         .sensor-cat-btn { flex: 1; padding: 3px 0; background: transparent; border: 1px dashed var(--neon-blue); color: var(--neon-blue); font-family: inherit; font-size: 9px; cursor: pointer; }
         .sensor-cat-btn.active { background: rgba(0, 255, 255, 0.2); border-style: solid; font-weight: bold; }
@@ -104,7 +104,7 @@
 
                     <div id="value-display" style="font-size: 14px; border-bottom: 1px solid #0ff; margin-bottom: 6px; color: var(--neon-green);">:: READY ::</div>
 
-                    <!-- 🆕 センサー表示パネル（カテゴリ切り替え機能付き） -->
+                    <!-- センサー表示パネル（カテゴリ切り替え機能付き） -->
                     <div class="sensor-panel">
                         <!-- カテゴリ選択：フォト / 測距 -->
                         <div class="sensor-category-group">
@@ -230,38 +230,50 @@
             }
         }
 
-        // 測距計算式 (超音波/赤外線など)
+        // 測距計算式 (raw値 / 58 = cm換算)
         function calculateDistance(rawValue) {
             const val = parseFloat(rawValue);
-            if (isNaN(val) || val <= 0) return 0;
-            return (val / 58.0).toFixed(1); // 時間(μs) / 58 = cm換算
+            if (isNaN(val) || val <= 0) return "0.0";
+            return (val / 58.0).toFixed(1);
         }
 
-        // 🆕 BLE受信処理（フォト: PR/PF/PL, 測距: S1/S2）
+        // 🆕 BLE受信処理（デバッグモニターへの自動計算・流し込み出力付き）
         function handleNotifications(event) {
             const str = new TextDecoder().decode(event.target.value).trim();
             
             if (str.startsWith("PR:")) {
-                photoValues.PR = str.replace("PR:", "");
+                const val = str.replace("PR:", "");
+                photoValues.PR = val;
+                addLog(`[PHOTO PR] RAW: ${val}`);
                 updateSensorDisplay();
             } else if (str.startsWith("PF:")) {
-                photoValues.PF = str.replace("PF:", "");
+                const val = str.replace("PF:", "");
+                photoValues.PF = val;
+                addLog(`[PHOTO PF] RAW: ${val}`);
                 updateSensorDisplay();
             } else if (str.startsWith("PL:")) {
-                photoValues.PL = str.replace("PL:", "");
+                const val = str.replace("PL:", "");
+                photoValues.PL = val;
+                addLog(`[PHOTO PL] RAW: ${val}`);
                 updateSensorDisplay();
             } else if (str.startsWith("S1:")) {
-                distRawValues[1] = str.replace("S1:", "");
+                const raw = str.replace("S1:", "");
+                distRawValues[1] = raw;
+                const distCm = calculateDistance(raw);
+                addLog(`[DIST 1] RAW: ${raw} -> ${distCm} cm`);
                 updateSensorDisplay();
             } else if (str.startsWith("S2:")) {
-                distRawValues[2] = str.replace("S2:", "");
+                const raw = str.replace("S2:", "");
+                distRawValues[2] = raw;
+                const distCm = calculateDistance(raw);
+                addLog(`[DIST 2] RAW: ${raw} -> ${distCm} cm`);
                 updateSensorDisplay();
             } else {
-                addLog(`[ESP32] ${str}`);
+                addLog(`[RECV] ${str}`);
             }
         }
 
-        // 🆕 センサカテゴリ切り替え (PHOTO / DISTANCE)
+        // センサカテゴリ切り替え (PHOTO / DISTANCE)
         function switchSensorCategory(cat) {
             currentCategory = cat;
             document.getElementById('cat-photo').classList.toggle('active', cat === 'photo');
@@ -277,7 +289,7 @@
             }
         }
 
-        // 🆕 フォトセンサ個別選択 (PR / PF / PL)
+        // フォトセンサ個別選択 (PR / PF / PL)
         function selectPhotoSensor(type) {
             activePhotoSensor = type;
             document.getElementById('btn-photo-pr').classList.toggle('active', type === 'PR');
@@ -289,7 +301,7 @@
             updateSensorDisplay();
         }
 
-        // 🆕 測距センサ個別選択 (1 / 2)
+        // 測距センサ個別選択 (1 / 2)
         function selectDistSensor(num) {
             activeDistSensor = num;
             document.getElementById('btn-dist-1').classList.toggle('active', num === 1);
@@ -300,7 +312,7 @@
             updateSensorDisplay();
         }
 
-        // 🆕 表示の更新処理
+        // 表示の更新処理
         function updateSensorDisplay() {
             const subValBox = document.getElementById('sensor-sub-val-container');
             
