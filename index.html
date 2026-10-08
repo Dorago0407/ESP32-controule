@@ -230,11 +230,26 @@
             }
         }
 
-        // 測距計算式 (raw値 / 58 = cm換算)
-        function calculateDistance(rawValue) {
-            const val = parseFloat(rawValue);
-            if (isNaN(val) || val <= 0) return "0.0";
-            return (val / 58.0).toFixed(1);
+        // GP2Y0A21YK用 距離計算式 (ESP32 12bit ADC: 0〜4095 対応)
+function calculateDistance(rawValue) {
+    const val = parseFloat(rawValue);
+    // 未接続またはノイズ等の極端な値を除外
+    if (isNaN(val) || val < 100) return "---";
+
+    // ESP32の3.3V入力における電圧換算値(V)
+    const volts = (val / 4095.0) * 3.3;
+
+    // GP2Y0A21YK (10cm〜80cm対応) の距離算出近似式
+    // ※ 16.253 * (volts ^ -1.214) などの多項式・累乗近似式
+    if (volts < 0.4) return "> 80"; // 測定可能範囲外（遠すぎる）
+    
+    const distanceCm = 16.253 * Math.pow(volts, -1.214);
+
+    // 10cm〜80cmの範囲外チェック
+    if (distanceCm < 10) return "< 10";
+    if (distanceCm > 80) return "> 80";
+
+    return distanceCm.toFixed(1); // 小数点第1位まで表示
         }
 
         // 🆕 BLE受信処理（デバッグモニターへの自動計算・流し込み出力付き）
